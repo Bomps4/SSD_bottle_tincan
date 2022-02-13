@@ -25,16 +25,23 @@ To visualize the perfomences of the different layers there is also the utilis/di
 
 the original model with the quantization script are included in the tflite_converter folder the script requires as parameters the full path to the frozen graph file and a name for the output. The script can apply full int8 quantization (default) or only quantization of the weights (with --no-full_8_bit). In the full int8 it requires also the path to a folder containing some images to calibrate the outputs. 
 
-	python3 tensorflow_converter.py -m=./tflite_graph.pb -o=./fully_quantized 
+	python3 tensorflow_converter.py -m=./tflite_graph.pb -o=./fully_quantized -i=../images/
 
 
 ## Test tflite models
 
-The tflite_test folder contains two Python scripts (test_tflite.py and comparison.py) to test the tflite quantized model and to compare the fully quantized model to model in which the quantization was applied only to the weights:
+The tflite_test folder contains two Python scripts (test_tflite.py and comparison.py) the fisrt one can be used to test the tflite models: 
 
 	python3 test_tflite.py -i=path/to/image
 
-if not specified the test image will be test_1_output.ppm located in the tflite_model folder.
+The compare script draws on the image the bounding boxes produced by the model with int8 activations(yellow) and float32 activations(black): 
+
+	python3 comparison.py -m=./non_quantized.tflite  -mq=../tflite_model/SSD_tin_can_bottle.tflite -i=path/to/image
+
+if not specified the test image will be test_1_output.ppm located in the tflite_model folder. 
+
+
+	
 
 	
 
