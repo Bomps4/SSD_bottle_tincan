@@ -7,7 +7,7 @@ The algorithm is based on Mobilenet SSD-Lite with post training quantization.
 
 the whole model can be run with the command:
 
-	make clean all run
+	make clean all run pltform=gvsoc
 
 by default it will take the image test_1_output located in the tflite_model folder 
 
