@@ -57,7 +57,7 @@ if __name__ == '__main__':
 		else:
 			tf_lite=tf.compat.v1.lite
 		
-		converter = tf_lite.TFLiteConverter.from_frozen_graph(
+		converter = tf_lite.TFLiteConverter.from_frozen_graph(#omissis)
 		graph_def_file=args.model_file,
 		input_arrays=['normalized_input_image_tensor'],
 		input_shapes={'normalized_input_image_tensor' : [1, 240,320,3]},
@@ -68,7 +68,7 @@ if __name__ == '__main__':
 
 		#converter.post_training_quantization=True
 
-		converter.target_spec.supported_ops = [tf1.lite.OpsSet.TFLITE_BUILTINS_INT8,tf1.lite.OpsSet.TFLITE_BUILTINS]
+		converter.target_spec.supported_ops = [tf_lite.OpsSet.TFLITE_BUILTINS_INT8,tf_lite.OpsSet.TFLITE_BUILTINS]
 		converter.inference_input_type = tf.int8
 		converter.inference_output_type = tf.float32
 		converter.inference_type = tf.int8
