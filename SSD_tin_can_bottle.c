@@ -47,13 +47,15 @@
 #define CAMERA_COLORS   (1)
 #define CAMERA_SIZE     (CAMERA_WIDTH*CAMERA_HEIGHT*CAMERA_COLORS)
 #define SCORE_THR       0
-
+#define HAVE_HIMAX 		1
 AT_HYPERFLASH_FS_EXT_ADDR_TYPE __PREFIX(_L3_Flash) = 0;
 
 #ifdef __EMUL__
   char *ImageName;
   uint8_t Input_1[AT_INPUT_SIZE];
 #else
+
+  
   struct pi_device camera;
   struct pi_device HyperRam;
   struct pi_device ili;
@@ -83,14 +85,17 @@ static int open_display(struct pi_device *device)
 static int open_camera_himax(struct pi_device *device)
 { printf("Opening camera\n");
   struct pi_himax_conf cam_conf;
+
   pi_himax_conf_init(&cam_conf);
+
   cam_conf.format = PI_CAMERA_QVGA;
+
   pi_open_from_conf(device, &cam_conf);
   printf("Finishing 2\n");
-  if (pi_camera_open(device))
-	{for(int i=0;i<100;++i)printf("error occurred\n");
-    return -1;}
-  for(int i=0;i<100;++i)printf("Finishing\n");
+  if (pi_camera_open(device))return -1;
+	//{for(int i=0;i<100;++i)printf("error occurred\n");
+    //return -1;}
+  //for(int i=0;i<100;++i)printf("Finishing\n");
   uint8_t reg_value, set_value;
 
 	// set_value = ANA;
@@ -103,9 +108,16 @@ static int open_camera_himax(struct pi_device *device)
 	// pi_camera_reg_get(&camera, HIMAX_OSC_CLK_DIV, &reg_value);
 	// printf("CLK_DIV %d\n", reg_value);
 
-
+	
     set_value=3;
+	
     pi_camera_reg_set(&camera, IMG_ORIENTATION, &set_value);
+	pi_camera_reg_get(device, IMG_ORIENTATION, &reg_value);
+  	if (set_value!=reg_value)
+  	{
+    	printf("Failed to rotate camera image\n");
+    	return -1;
+  	}
 
     pi_camera_control(device, PI_CAMERA_CMD_AEG_INIT, 0);
 
@@ -137,6 +149,7 @@ int start()
   pi_gpio_pin_write(NULL, PI_GPIO_A0_PAD_8_A4, 0);
   #endif   
   #ifdef HAVE_HIMAX
+	
     int err = open_camera_himax(&camera);
     if (err) {
       printf("Failed to open camera\n");
@@ -175,7 +188,8 @@ int start()
       pmsis_exit(-1);
     }
   #endif
-  while(1){
+  while(true){
+	PRINTF("S \n");
     #ifdef HAVE_HIMAX
       uint8_t* Input_1 = (uint8_t*) pmsis_l2_malloc(CAMERA_SIZE*sizeof(char));
       //Reading Image from Bridge
@@ -202,7 +216,7 @@ int start()
         return 1;
       }
     #endif
-    #ifdef HAVE_LCD
+    
       #ifdef HAVE_HIMAX
         // Image Cropping to [ AT_INPUT_HEIGHT_SSD x AT_INPUT_WIDTH_SSD ]
         int idx=0;
@@ -215,6 +229,7 @@ int start()
           }
         }
       #endif
+	#ifdef HAVE_LCD
       buffer.data = Input_1;
       buffer.stride = 0;
         // WIth Himax, propertly configure the buffer to skip boarder pixels
@@ -226,8 +241,8 @@ int start()
 
 	int8_t* Input_2 = (int8_t*) Input_1 ;
 	#ifdef HAVE_HIMAX
-		WriteImageToFile("/home/bomps/Scrivania/gap_8/conversion_tflite/last_working/tflite_model/output_camera.ppm", AT_INPUT_WIDTH_SSD, AT_INPUT_HEIGHT_SSD, sizeof(uint8_t), Input_1, GRAY_SCALE_IO);
-	#endif+
+		WriteImageToFile("./tflite_model/output_camera.ppm", AT_INPUT_WIDTH_SSD, AT_INPUT_HEIGHT_SSD, sizeof(uint8_t), Input_1, GRAY_SCALE_IO);
+	#endif
 	for(int i=0; i<AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD ; i++){Input_2[i] = Input_1[i] - 128; }
 	
 
@@ -293,7 +308,7 @@ int start()
     // Execute the function "RunNetwork" on the cluster.
 	uint32_t time_begin=rt_time_get_us(); 
     pi_cluster_send_task_to_cl(&cluster_dev, task);
-	PRINTF("TOTAL TIME IN MICROSECONDS: %d",rt_time_get_us()-time_begin);
+	PRINTF("TOTAL TIME IN MICROSECONDS: %d \n",rt_time_get_us()-time_begin);
   #endif
 #else
 
@@ -301,7 +316,7 @@ int start()
 
 #endif
 
-#ifndef __EMUL__
+/*#ifndef __EMUL__
   #ifdef PERF
 	{
 		unsigned int TotalCycles = 0, TotalOper = 0;
@@ -315,7 +330,7 @@ int start()
 		printf("\n");
 	}
   #endif
-#endif
+#endif*/
   __PREFIX(CNN_Destruct)();
 	for(char i=0;i<10;i+=1){
 	if(out_scores[i]>SCORE_THR){
@@ -343,13 +358,10 @@ int start()
   };}
   PRINTF("Ended\n");
   
-#ifndef __EMUL__
-  #ifdef PERF
-    break;
-  #endif
+
 }
   pmsis_exit(0);
-#endif
+
 }
 
 #ifndef __EMUL__
