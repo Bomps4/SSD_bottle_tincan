@@ -35,6 +35,7 @@ APP_SRCS += BUILD_MODEL_SSD/SSD_tin_can_bottleKernels.c
 APP_CFLAGS += -O3
 APP_CFLAGS += -I. -I$(MODEL_COMMON_INC) -I$(TILER_EMU_INC) -I$(TILER_INC) $(CNN_LIB_INCLUDE)
 APP_CFLAGS += -IBUILD_MODEL_SSD 
+APP_LDFLAGS += -lgaplib
 
 
 PMSIS_OS=pulpos
@@ -71,7 +72,7 @@ else #GAP8
 	ifeq '$(TARGET_CHIP)' 'GAP8_V3'
 	FREQ_CL?=175
 	else
-		FREQ_CL?=50
+		FREQ_CL?=160
 	endif
 	FREQ_FC?=250
 endif
