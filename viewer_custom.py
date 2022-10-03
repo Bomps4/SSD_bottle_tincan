@@ -68,19 +68,24 @@ deck_ip = None
 deck_port = None
 def decode_bytes(byte_arr):
     cordinates=[struct.unpack('h',byte_arr[i*2:(i+1)*2])[0] for i in range(0,40)]
-    print(cordinates)
+    # print(cordinates)
     scores=[i for i in struct.iter_unpack('b', byte_arr[80:90])]
-    print(scores)
+    # print(scores)
     classes=[i for i in struct.iter_unpack('b', byte_arr[90:100])]
     seen_boxes=[tuple(cordinates[idx*4:(idx+1)*4])+classes[idx] for idx,i in enumerate(scores) if (scores[idx][0]>=25)]
     
     return seen_boxes
 
-def save_image(imgdata, number_of_images):
+def save_image_bytearray(imgdata, number_of_images):
     decoded = cv2.imdecode(np.frombuffer(imgdata, np.uint8), -1)
     image_name = str(number_of_images)+".jpg"
     try: cv2.imwrite(join(images_folder_path,image_name), decoded)
     except: print('couldnt decode image, data lenght was', len(imgdata))
+
+def save_image_pil(img, name):
+    image_name = str(name)+'.png'
+    try: img.save(join(images_folder_path,image_name))
+    except: print('couldnt decode image')
 
 class ImgThread(threading.Thread):
     def __init__(self, callback):
@@ -98,6 +103,9 @@ class ImgThread(threading.Thread):
         number_of_images = 0
         left_out=0
         starting_point=None
+
+        if SAVE_IMAGES: # create directory to save images
+            os.makedirs(images_folder_path, exist_ok=True)
 	
         while(1):
             strng = client_socket.recv(512)
@@ -109,7 +117,7 @@ class ImgThread(threading.Thread):
 
             # Concatenate image data, once finished send it to the UI
             if start_idx >= 0:
-                print("preparo l'immagine")
+                # print("preparo l'immagine")
                 imgdata += strng[:start_idx]
                 starting_point=imgdata.rfind(b"\x81\r")
                 if(starting_point>=0):
@@ -134,16 +142,16 @@ class ImgThread(threading.Thread):
                 # Now append the jpeg footer at the end of the complete image. We do this before saving or visualizing the image, so it can be dec,y,w,h) oded correctly
                 imgdata_complete = imgdata_complete + (b"\xff\xd9") 
                 if VERBOSE: print('len strng %d  \t Bytes imgdata  %d\t \n\n' % (len(strng), len(imgdata_complete)-308 )) #308 = len(header)+len(footer)
-
-                if SAVE_IMAGES==True and (number_of_images % 5 ==0 ): #saves just one every 5 images to not overload
-                    save_image(imgdata_complete, number_of_images)
+                
+                # if SAVE_IMAGES==True and (number_of_images % 1 ==0 ): #saves just one every 5 images to not overload
+                #     save_image_bytearray(imgdata_complete, number_of_images)
                 number_of_images+=1
                 try: #show frame
                     if(imgtext!=None):
                        boxes=decode_bytes(imgtext[2:])
                     else:
                        boxes=[]
-                    self._callback(imgdata_complete,boxes)
+                    self._callback(imgdata_complete, number_of_images, boxes)
                     
                 except gi.repository.GLib.Error:
                     print ("image not shown")
@@ -155,11 +163,6 @@ class ImgThread(threading.Thread):
                 else:
                     imgdata += strng
             
-				
-				
-
-            
-
 
           
 # UI for showing frames from AI-deck example
@@ -191,7 +194,7 @@ class FrameViewer(Gtk.Window):
 
 			
 
-    def _showframe(self, imgdata_complete,seen_boxes):
+    def _showframe(self, imgdata_complete, im_name, seen_boxes):
         # Add FPS/img size to window title
         if (self._start != None):
             fps = 1 / (time.time() - self._start)
@@ -202,23 +205,25 @@ class FrameViewer(Gtk.Window):
         # Try to decode JPEG from the data sent from the stream
         try:
             if(imgdata_complete.find(b"\xff\xd8")!=-1):
-             img_decoded= np.array( cv2.imdecode(np.frombuffer(imgdata_complete, np.uint8), -1),dtype=np.uint8)
-             im=Image.fromarray(img_decoded)
-             draw=ImageDraw.Draw(im)
-             for i in seen_boxes: 
-                   draw.rectangle((i[1],i[0],i[3],i[2]), outline ="yellow")
-             img_byte_arr = io.BytesIO()
-             im.save(img_byte_arr, format='PNG')
-             img_byte_arr = img_byte_arr.getvalue()
-             imgdata_complete=img_byte_arr
+                img_decoded= np.array( cv2.imdecode(np.frombuffer(imgdata_complete, np.uint8), -1),dtype=np.uint8)
+                im=Image.fromarray(img_decoded)
+                draw=ImageDraw.Draw(im)
+                for i in seen_boxes: 
+                    draw.rectangle((i[1],i[0],i[3],i[2]), outline = "yellow")
+                if SAVE_IMAGES:
+                    save_image_pil(im, im_name)
+                img_byte_arr = io.BytesIO()
+                im.save(img_byte_arr, format='PNG')
+                img_byte_arr = img_byte_arr.getvalue()
+                imgdata_complete=img_byte_arr
 
             out=img_loader.write(bytearray(imgdata_complete))
             pix = img_loader.get_pixbuf()
-            print(pix)
+            # print(pix)
             GLib.idle_add(self._update_image,pix)
         except gi.repository.GLib.Error:
             print("Could not set image!")
-        print(img_loader.close())
+        img_loader.close()
 
 # Args for setting IP/port of AI-deck. Default settings are for when
 # AI-deck is in AP mode.
@@ -226,7 +231,7 @@ parser = argparse.ArgumentParser(description='Connect to AI-deck JPEG streamer e
 parser.add_argument("-n",  default="192.168.4.1", metavar="ip", help="AI-deck IP")
 parser.add_argument("-p", type=int, default='5000', metavar="port", help="AI-deck port")
 parser.add_argument('--save_images', help='save images on your pc', action='store_true')
-parser.add_argument('--save_images_path', help='folder where images are saved', default='/home/bomps/Scrivania/gap_8/conversion_tflite/SSD_bottle_tincan/qua/')
+parser.add_argument('--save_images_path', help='folder where images are saved', default='./dataset')
 args = parser.parse_args()
 
 SAVE_IMAGES = args.save_images
