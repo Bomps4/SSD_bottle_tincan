@@ -20,7 +20,7 @@ def main():
 	frames = [] 
 	for L2_MEM in range(190, 380, 10):
 		columns = []
-		stream = os.popen('make -f ssd.mk at_model MODEL_L2_MEMORY={} '.format(L2_MEM*1000))
+		stream = os.popen('make -f ssd.m at_model MODEL_L2_MEMORY={} '.format(L2_MEM*1000))
 
 
 		out_log = stream.readlines()
@@ -53,4 +53,4 @@ def main():
 	plt.show()
 
 if __name__ == "__main__":
-	main()
+	main()k
