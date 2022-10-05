@@ -35,6 +35,7 @@
 #include "bsp/ram/hyperram.h"
 #include "gaplib/ImgIO.h"
 #include "stdio.h"
+#include "himax_utils.h"
 
 #define __XSTR(__s) __STR(__s)
 #define __STR(__s) #__s
@@ -137,7 +138,7 @@ static void init_wifi() {
 	errors = pi_transport_open(&wifi);
 
 #ifdef VERBOSE	
-	//PRINTF("NINA WiFi init:\t\t\t\t%s\n", errors?"Failed":"Ok");
+	PRINTF("NINA WiFi init:\t\t\t\t%s\n", errors?"Failed":"Ok");
 #endif	
 
 	if(errors) pmsis_exit(errors);
@@ -162,7 +163,7 @@ static void init_streamer() {
 	pi_buffer_set_format(&buffer, AT_INPUT_WIDTH_SSD, AT_INPUT_HEIGHT_SSD, 1, PI_BUFFER_FORMAT_GRAY);
 
 #ifdef VERBOSE	
-	//PRINTF("Streamer init:\t\t\t\t%s\n", streamer?"Ok":"Failed");
+	PRINTF("Streamer init:\t\t\t\t%s\n", streamer?"Ok":"Failed");
 #endif	
 
 	if(streamer == NULL) pmsis_exit(-1);
@@ -187,7 +188,7 @@ static void init_txt_streamer() {
 	pi_buffer_init(&txt_buffer, PI_BUFFER_TYPE_L2, (char*)outputs);
 	pi_buffer_set_format(&txt_buffer, NUMBER_OF_DETECTION*BYTES_DETECTION+2, 1, 1, PI_BUFFER_FORMAT_GRAY);
 	
-	//PRINTF("Streamer init:\t\t\t\t%s\n", txt_streamer?"Ok":"Failed");
+	PRINTF("Streamer init:\t\t\t\t%s\n", txt_streamer?"Ok":"Failed");
 #ifdef VERBOSE	
 	
 #endif	
@@ -197,55 +198,98 @@ static void init_txt_streamer() {
 */
 
 #ifdef HAVE_HIMAX
-static int open_camera_himax(struct pi_device *device)
-{ //PRINTF("Opening camera\n");
-  struct pi_himax_conf cam_conf;
-
-  pi_himax_conf_init(&cam_conf);
-
-  cam_conf.format = PI_CAMERA_QVGA;
-
-  pi_open_from_conf(device, &cam_conf);
-  if (pi_camera_open(device))return -1;
-	//{for(int i=0;i<100;++i)//PRINTF("error occurred\n");
-    //return -1;}
-  //for(int i=0;i<100;++i)//PRINTF("Finishing\n");
-  uint8_t reg_value, set_value;
-
-	// set_value = ANA;
-	// pi_camera_reg_set(&camera, HIMAX_ANA_Register_17, &set_value);
-	// pi_camera_reg_get(&camera, HIMAX_ANA_Register_17, &reg_value);
-	// //PRINTF("ANA %d\n", reg_value);
-
-	// set_value = CLK_DIV;
-	// pi_camera_reg_set(&camera, HIMAX_OSC_CLK_DIV, &set_value);
-	// pi_camera_reg_get(&camera, HIMAX_OSC_CLK_DIV, &reg_value);
-	// //PRINTF("CLK_DIV %d\n", reg_value);
-
-	
-    set_value=0;
-	
-    pi_camera_reg_set(device, IMG_ORIENTATION, &set_value);
-	pi_camera_reg_get(device, IMG_ORIENTATION, &reg_value);
-  	if (set_value!=reg_value)
-  	{
-    	//PRINTF("Failed to rotate camera image\n");
-    	return -1;
-  	}
-
-    pi_camera_control(device, PI_CAMERA_CMD_AEG_INIT, 0);
-
-    return 0;
+void manual_exposure(){
+	// IMAV PARAMETERS : curtains closed
+	uint16_t integration_value16 = 0x0154;
+	uint16_t d_gain_value16 = 0x0138;
+	uint8_t a_gain_value = 0x20;
+	write_himax_exp_params(&camera, integration_value16, d_gain_value16, a_gain_value);
 }
+
+static struct pi_device camera;
+static void open_camera_himax() {
+	int32_t errors = 0;
+	uint8_t set_value;
+	struct pi_himax_conf cam_conf;
+
+	pi_himax_conf_init(&cam_conf);
+
+	cam_conf.format = PI_CAMERA_QVGA;
+
+	pi_open_from_conf(&camera, &cam_conf);
+
+	errors = pi_camera_open(&camera);
+
+	pi_time_wait_us(1000000);
+
+	printf("HiMax camera init:\t\t\t%s\n", errors?"Failed":"Ok");
+
+	if(errors) pmsis_exit(errors);
+
+	// set registers
+	set_value = 0x01;
+	pi_camera_reg_set(&camera, HIMAX_GRP_PARAM_HOLD, &set_value);
+	pi_time_wait_us(100000);
+
+	set_value = 3;
+	pi_camera_reg_set(&camera, IMG_ORIENTATION, &set_value); //IMG_ORIENTATION=0101
+	set_value = 0x03;
+
+	set_value = 0x0;
+	pi_camera_reg_set(&camera, HIMAX_GRP_PARAM_HOLD, &set_value); 
+	pi_time_wait_us(100000);
+	pi_camera_control(&camera, PI_CAMERA_CMD_AEG_INIT, 0);
+}
+
+// static int open_camera_himax()
+// { PRINTF("Opening camera\n");
+//   struct pi_himax_conf cam_conf;
+
+//   pi_himax_conf_init(&cam_conf);
+
+//   cam_conf.format = PI_CAMERA_QVGA;
+
+//   pi_open_from_conf(device, &cam_conf);
+//   if (pi_camera_open(device))return -1;
+// 	//{for(int i=0;i<100;++i)//PRINTF("error occurred\n");
+//     //return -1;}
+//   //for(int i=0;i<100;++i)//PRINTF("Finishing\n");
+//   uint8_t reg_value, set_value;
+
+// 	// set_value = ANA;
+// 	// pi_camera_reg_set(&camera, HIMAX_ANA_Register_17, &set_value);
+// 	// pi_camera_reg_get(&camera, HIMAX_ANA_Register_17, &reg_value);
+// 	// //PRINTF("ANA %d\n", reg_value);
+
+// 	// set_value = CLK_DIV;
+// 	// pi_camera_reg_set(&camera, HIMAX_OSC_CLK_DIV, &set_value);
+// 	// pi_camera_reg_get(&camera, HIMAX_OSC_CLK_DIV, &reg_value);
+// 	// //PRINTF("CLK_DIV %d\n", reg_value);
+
+	
+//     set_value=0;
+	
+//     pi_camera_reg_set(device, IMG_ORIENTATION, &set_value);
+// 	pi_camera_reg_get(device, IMG_ORIENTATION, &reg_value);
+//   	if (set_value!=reg_value)
+//   	{
+//     	PRINTF("Failed to rotate camera image\n");
+//     	return -1;
+//   	}
+
+//     pi_camera_control(device, PI_CAMERA_CMD_AEG_INIT, 0);
+
+//     return 0;
+// }
 #endif
 
 
 
 static void RunNetwork()
 { 
-  ////PRINTF("Running on cluster\n");
+  //PRINTF("Running on cluster\n");
 //#ifdef PERF
-//  //PRINTF("Start timer\n");
+//  PRINTF("Start timer\n");
 //  gap_cl_starttimer();
 //  gap_cl_resethwtimer();
 //#endif
@@ -273,7 +317,7 @@ static void detection_handler(){
 	  
 	  task = pmsis_l2_malloc(sizeof(struct pi_cluster_task));
 	  if(task==NULL) {
-		//PRINTF("pi_cluster_task alloc Error!\n");
+		PRINTF("pi_cluster_task alloc Error!\n");
 		pmsis_exit(-1);
 	  }
 	  //PRINTF("Stack size is %d and %d\n",STACK_SIZE,SLAVE_STACK_SIZE );
@@ -289,13 +333,13 @@ static void detection_handler(){
 
 	  
 	  int error_cnn=__PREFIX(CNN_Construct)();
-	  //PRINTF("error cnn constructor %d \n",error_cnn);
+	  PRINTF("error cnn constructor %d \n",error_cnn);
 	  if (error_cnn)
 	  {
-		//PRINTF("Graph constructor exited with an error\n");
+		PRINTF("Graph constructor exited with an error\n");
 		pmsis_exit(-1);
 	  }
-	  //PRINTF("Graph constructor was OK\n");
+	  PRINTF("Graph constructor was OK\n");
 	
 	int idx=0;
 		    for(int i =0;i<CAMERA_HEIGHT;i++){
@@ -333,17 +377,15 @@ static void detection_handler(){
 	  pi_ram_write(&HyperRam, l3_buff+2*AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD , Input_2, (uint32_t)AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD);
 	/*
 	pi_ram_read(&HyperRam, l3_buff,attimo,AT_INPUT_WIDTH_SSD);
-	//PRINTF("posizione attimo %x",attimo);
+	PRINTF("posizione attimo %x",attimo);
 	for (int i=0;i<AT_INPUT_WIDTH_SSD;++i){
 		//PRINTF("sono i dati pescati da hyperam %d cosa ho in pancia %d \n",i,attimo[i]);}*/
 	  
 	  
 
-	  
-
-
-	  //PRINTF("ci arrivo qua?\n");
+	  	  uint32_t time_begin=rt_time_get_us(); 
 	  uint32_t time_begin=rt_time_get_us(); 
+	  	  uint32_t time_begin=rt_time_get_us(); 
 	  LED_ON;
 	  pi_cluster_send_task_to_cl(&cluster_dev, task);
 	  //PRINTF("TOTAL TIME IN MICROSECONDS: %d \n",rt_time_get_us()-time_begin);
@@ -409,7 +451,7 @@ int start()
 	outputs[1]=13;
     int err = open_camera_himax(&camera);
     if (err) {
-      //PRINTF("Failed to open camera\n");
+      PRINTF("Failed to open camera\n");
       pmsis_exit(-2);
     }
     
@@ -420,13 +462,13 @@ int start()
   pi_open_from_conf(&HyperRam, &hyper_conf);
   if (pi_ram_open(&HyperRam))
   {
-    //PRINTF("Error ram open !\n");
+    PRINTF("Error ram open !\n");
     pmsis_exit(-3);
   }
 
   if (pi_ram_alloc(&HyperRam, &l3_buff, (uint32_t) AT_INPUT_SIZE))
   {
-    //PRINTF("Ram malloc failed !\n");
+    PRINTF("Ram malloc failed !\n");
     pmsis_exit(-4);
   }
   //PRINTF("l3 origin %d \n",l3_buff);
@@ -442,7 +484,7 @@ int start()
 	  pi_cluster_conf_init(&conf);
 	  pi_open_from_conf(&cluster_dev, (void *)&conf);
 	  int error=pi_cluster_open(&cluster_dev);
-	  //PRINTF("is cluster giving an error? %d\n",error);
+	  PRINTF("is cluster giving an error? %d\n",error);
 	  if(error) pmsis_exit(error);
 
       pi_freq_set(PI_FREQ_DOMAIN_CL, FREQ_CL*1000*1000);
@@ -451,14 +493,14 @@ int start()
 
   
   if(Input_1==NULL){
-      //PRINTF("Error allocating image buffer\n");
+      PRINTF("Error allocating image buffer\n");
       pmsis_exit(-1);}
   init_wifi();
-  //PRINTF("OPENED_WIFI \n");
+  PRINTF("OPENED_WIFI \n");
   init_streamer();
-  //PRINTF("OPENED_STREAMER_IMAGES\n");
+  PRINTF("OPENED_STREAMER_IMAGES\n");
   init_simple_streamer();
-  //PRINTF("OPENED_STREAMER_TEXT\n");
+  PRINTF("OPENED_STREAMER_TEXT\n");
   pi_task_push(pi_task_callback(&cam_task, camera_handler, NULL));
   while(true){
 	
@@ -473,7 +515,7 @@ int start()
 //#ifndef __EMUL__
 int main(void)
 { 
-  //PRINTF("\n\n\t *** OCR SSD ***\n\n");
+  PRINTF("\n\n\t *** OCR SSD ***\n\n");
 
   return pmsis_kickoff((void *) start);
 }
