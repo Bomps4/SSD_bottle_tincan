@@ -210,10 +210,12 @@ class FrameViewer(Gtk.Window):
                 img_decoded= np.array( cv2.imdecode(np.frombuffer(imgdata_complete, np.uint8), -1),dtype=np.uint8)
                 im=Image.fromarray(img_decoded)
                 draw=ImageDraw.Draw(im)
-                for i,j in zip(seen_boxes,classes): 
+                for i,j in zip(seen_boxes,classes):
+                    p_box = i[:4] # x1,y1,x2,y2
+                    p_class = i[4] 
                     draw.rectangle((i[1],i[0],i[3],i[2]), outline = "yellow")
-                    if i[4]<=2 and i[4]>=0 :
-                       print(labels[i[4]-1])
+                    if p_class in range(1,2):   # only accept 2 classes
+                       print(labels[p_class-1]) # labels are shifted by nntool by 1
                 if SAVE_IMAGES:
                     save_image_pil(im, im_name)
                 img_byte_arr = io.BytesIO()
