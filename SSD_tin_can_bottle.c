@@ -92,7 +92,7 @@ AT_HYPERFLASH_FS_EXT_ADDR_TYPE __PREFIX(_L3_Flash) = 0;
   static pi_buffer_t buffer;
   static uint32_t l3_buff;
   L2_MEM static uint8_t Input_1[CAMERA_SIZE];
-  struct pi_cluster_task *task;
+  
 
   
 #endif
@@ -107,6 +107,7 @@ L2_MEM signed char outputs[TEXT_SIZE];
 L2_MEM short int out_boxes[40];
 L2_MEM signed char out_scores[10];
 L2_MEM signed char out_classes[10];
+L2_MEM struct pi_cluster_task task[1];
 /*
 #ifdef HAVE_LCD
 static int open_display(struct pi_device *device)
@@ -315,11 +316,12 @@ static void init_simple_streamer(){
 static void detection_handler(){
 	  pi_camera_control(&camera, PI_CAMERA_CMD_STOP, 0);
 	  
-	  task = pmsis_l2_malloc(sizeof(struct pi_cluster_task));
+	  /*task = pmsis_l2_malloc(sizeof(struct pi_cluster_task));
 	  if(task==NULL) {
-		PRINTF("pi_cluster_task alloc Error!\n");
+		PRINTF("pi_cluster_task alloc Error!\n ");
+
 		pmsis_exit(-1);
-	  }
+	  }*/
 	  //PRINTF("Stack size is %d and %d\n",STACK_SIZE,SLAVE_STACK_SIZE );
 	  memset(task, 0, sizeof(struct pi_cluster_task));
 	  task->entry = &RunNetwork;
@@ -327,11 +329,12 @@ static void detection_handler(){
 	  task->slave_stack_size = SLAVE_STACK_SIZE;
 	  task->arg = NULL;
 
+	  printf("task ok\n");
 
+	  
 
 	  
 
-	  
 	  int error_cnn=__PREFIX(CNN_Construct)();
 	  PRINTF("error cnn constructor %d \n",error_cnn);
 	  if (error_cnn)
@@ -357,6 +360,7 @@ static void detection_handler(){
 		Input_1[i+j*AT_INPUT_WIDTH_SSD]=Input_1[-i+(AT_INPUT_HEIGHT_SSD-j)*AT_INPUT_WIDTH_SSD];
 		Input_1[-i+(AT_INPUT_HEIGHT_SSD-j)*AT_INPUT_WIDTH_SSD]=pixel;
 		};}
+	printf("image rotated\n");
 	/*  
       rimettere assieme codice al contrario;
 	  mettere checksum cumulativo somma dei pixel check in tutti i punti (farlo anche su python) idem con patate sui pesi;
@@ -367,7 +371,7 @@ static void detection_handler(){
 	  
 
 	  for(int i=0; i<AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD ; ++i){Input_2[i] = Input_1[i]-128; }
-	  
+	  printf("image corrected\n");
 	  //int8_t *attimo=(int8_t*)pi_l2_malloc(AT_INPUT_WIDTH_SSD); good indicare il size of in dimensione*sizeof
 	
 	  pi_ram_write(&HyperRam, l3_buff , Input_2, (uint32_t)AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD);
@@ -375,6 +379,7 @@ static void detection_handler(){
 	  pi_ram_write(&HyperRam, l3_buff+AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD , Input_2, (uint32_t) AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD);
 
 	  pi_ram_write(&HyperRam, l3_buff+2*AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD , Input_2, (uint32_t)AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD);
+	printf("ram written \n");
 	/*
 	pi_ram_read(&HyperRam, l3_buff,attimo,AT_INPUT_WIDTH_SSD);
 	PRINTF("posizione attimo %x",attimo);
@@ -387,11 +392,12 @@ static void detection_handler(){
 	  uint32_t time_begin=rt_time_get_us(); 
 	  	  uint32_t time_begin=rt_time_get_us(); 
 	  LED_ON;
-	  pi_cluster_send_task_to_cl(&cluster_dev, task);
+	  uint32_t error_cluster = pi_cluster_send_task_to_cl(&cluster_dev, task);
+	  printf("sent task to clusted %d \n",error_cluster);
 	  //PRINTF("TOTAL TIME IN MICROSECONDS: %d \n",rt_time_get_us()-time_begin);
 	  LED_OFF;
-	  __PREFIX(CNN_Destruct)();	
-	  pi_l2_free(task,sizeof(struct pi_cluster_task));
+	  
+	  //pi_l2_free(task,sizeof(struct pi_cluster_task));
 	  for(char i=0;i<10;i+=1){
 	  	out_boxes[i*4] = (short int)(FIX2FP(((int)out_boxes[i*4])*SSD_tin_can_bottle_Output_1_OUT_QSCALE,SSD_tin_can_bottle_Output_1_OUT_QNORM)*240);
 
@@ -424,7 +430,9 @@ static void detection_handler(){
 static void camera_handler() {
 	 
 	pi_camera_control(&camera, PI_CAMERA_CMD_ON, 0);
+	
 	pi_camera_capture_async(&camera,  Input_1, CAMERA_WIDTH*CAMERA_HEIGHT,pi_task_callback(&detection_task, detection_handler, NULL) );
+	printf("camera finished\n");
 	//ReadImageFromFile("/home/bomps/Scrivania/gap_8/conversion_tflite/SSD_bottle_tincan/tflite_model/test_1_out.ppm", AT_INPUT_WIDTH_SSD, AT_INPUT_HEIGHT_SSD, 1, Input_1, AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD*sizeof(char), IMGIO_OUTPUT_CHAR, 0);
 	//pi_task_push(pi_task_callback(&detection_task, detection_handler, NULL));
 	pi_camera_control(&camera, PI_CAMERA_CMD_START, 0);
@@ -437,7 +445,11 @@ static void camera_handler() {
 
 
 int start()
-{
+{ PMU_set_voltage(1200, 0);
+	  pi_time_wait_us(100000);
+	  pi_freq_set(PI_FREQ_DOMAIN_FC, FREQ_FC*1000*1000);
+	  pi_freq_set(PI_FREQ_DOMAIN_CL, FREQ_CL*1000*1000);
+	  pi_time_wait_us(100000);
   //spostare qui le frequenze prova
   /*
   #ifdef MEASUREMENTS
@@ -460,6 +472,7 @@ int start()
   struct pi_hyperram_conf hyper_conf;
   pi_hyperram_conf_init(&hyper_conf);
   pi_open_from_conf(&HyperRam, &hyper_conf);
+  printf("ram opened\n");
   if (pi_ram_open(&HyperRam))
   {
     PRINTF("Error ram open !\n");
@@ -476,30 +489,35 @@ int start()
   
 
   /*-----------------------OPEN THE CLUSTER--------------------------*/
-	  PMU_set_voltage(1200, 0);
-	  pi_time_wait_us(100000);
-	  pi_freq_set(PI_FREQ_DOMAIN_FC, FREQ_FC*1000*1000);
-	  pi_time_wait_us(100000);
+	  
       struct pi_cluster_conf conf;
 	  pi_cluster_conf_init(&conf);
 	  pi_open_from_conf(&cluster_dev, (void *)&conf);
 	  int error=pi_cluster_open(&cluster_dev);
 	  PRINTF("is cluster giving an error? %d\n",error);
 	  if(error) pmsis_exit(error);
-
-      pi_freq_set(PI_FREQ_DOMAIN_CL, FREQ_CL*1000*1000);
-      pi_time_wait_us(100000);
+	  printf("cluster started\n");
+      
+   int error_cnn=__PREFIX(CNN_Construct)();
+	  //PRINTF("error cnn constructor %d \n",error_cnn);
+	  if (error_cnn)
+	  {
+		printf("Graph constructor exited with an error \n %d",error_cnn);
+		pmsis_exit(-1);
+	  }
   
 
   
   if(Input_1==NULL){
       PRINTF("Error allocating image buffer\n");
       pmsis_exit(-1);}
+  
   init_wifi();
   PRINTF("OPENED_WIFI \n");
   init_streamer();
   PRINTF("OPENED_STREAMER_IMAGES\n");
   init_simple_streamer();
+
   PRINTF("OPENED_STREAMER_TEXT\n");
   pi_task_push(pi_task_callback(&cam_task, camera_handler, NULL));
   while(true){
@@ -507,7 +525,7 @@ int start()
 	pi_yield();
 	
 }
-  
+  __PREFIX(CNN_Destruct)();	
   pmsis_exit(0);
 
 }
@@ -515,6 +533,7 @@ int start()
 //#ifndef __EMUL__
 int main(void)
 { 
+
   PRINTF("\n\n\t *** OCR SSD ***\n\n");
 
   return pmsis_kickoff((void *) start);

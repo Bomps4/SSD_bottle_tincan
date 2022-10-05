@@ -66,6 +66,7 @@ RECEIVE_TIMESTAMP=False #only used for the dataset framework collector
 
 deck_ip = None
 deck_port = None
+labels=["Bottle","Tincan"]
 def decode_bytes(byte_arr):
     cordinates=[struct.unpack('h',byte_arr[i*2:(i+1)*2])[0] for i in range(0,40)]
     # print(cordinates)
@@ -74,7 +75,7 @@ def decode_bytes(byte_arr):
     classes=[i for i in struct.iter_unpack('b', byte_arr[90:100])]
     seen_boxes=[tuple(cordinates[idx*4:(idx+1)*4])+classes[idx] for idx,i in enumerate(scores) if (scores[idx][0]>=25)]
     
-    return seen_boxes
+    return seen_boxes,classes
 
 def save_image_bytearray(imgdata, number_of_images):
     decoded = cv2.imdecode(np.frombuffer(imgdata, np.uint8), -1)
@@ -148,10 +149,11 @@ class ImgThread(threading.Thread):
                 number_of_images+=1
                 try: #show frame
                     if(imgtext!=None):
-                       boxes=decode_bytes(imgtext[2:])
+                       boxes,classes=decode_bytes(imgtext[2:])
                     else:
                        boxes=[]
-                    self._callback(imgdata_complete, number_of_images, boxes)
+                       classes=[]
+                    self._callback(imgdata_complete, number_of_images, boxes,classes)
                     
                 except gi.repository.GLib.Error:
                     print ("image not shown")
@@ -194,7 +196,7 @@ class FrameViewer(Gtk.Window):
 
 			
 
-    def _showframe(self, imgdata_complete, im_name, seen_boxes):
+    def _showframe(self, imgdata_complete, im_name, seen_boxes,classes):
         # Add FPS/img size to window title
         if (self._start != None):
             fps = 1 / (time.time() - self._start)
@@ -208,8 +210,10 @@ class FrameViewer(Gtk.Window):
                 img_decoded= np.array( cv2.imdecode(np.frombuffer(imgdata_complete, np.uint8), -1),dtype=np.uint8)
                 im=Image.fromarray(img_decoded)
                 draw=ImageDraw.Draw(im)
-                for i in seen_boxes: 
+                for i,j in zip(seen_boxes,classes): 
                     draw.rectangle((i[1],i[0],i[3],i[2]), outline = "yellow")
+                    if i[4]<=2 and i[4]>=0 :
+                       print(labels[i[4]-1])
                 if SAVE_IMAGES:
                     save_image_pil(im, im_name)
                 img_byte_arr = io.BytesIO()
