@@ -68,6 +68,14 @@ deck_ip = None
 deck_port = None
 labels=["Bottle","Tincan"]
 def decode_bytes(byte_arr):
+    """byte decoding
+
+    Args:
+        byte_arr (bytearray):detection inputs as data coordinates
+
+    Returns:
+        tuple[lists]: [0] list of y_min,x_min,y_max,x_max,class of bounding boxes, list of scores associated with each bounding boxes
+    """
     cordinates=[struct.unpack('h',byte_arr[i*2:(i+1)*2])[0] for i in range(0,40)]
     # print(cordinates)
     scores=[i for i in struct.iter_unpack('b', byte_arr[80:90])]
@@ -75,15 +83,27 @@ def decode_bytes(byte_arr):
     classes=[i for i in struct.iter_unpack('b', byte_arr[90:100])]
     seen_boxes=[tuple(cordinates[idx*4:(idx+1)*4])+classes[idx] for idx,i in enumerate(scores) if (scores[idx][0]>=25)]
     
-    return seen_boxes,classes
+    return seen_boxes,scores
 
 def save_image_bytearray(imgdata, number_of_images):
+    """saving bytearray data as images
+
+    Args:
+        imgdata (bytearray): bytearay of images data 
+        number_of_images (int): number of images in imagedata
+    """
     decoded = cv2.imdecode(np.frombuffer(imgdata, np.uint8), -1)
     image_name = str(number_of_images)+".jpg"
     try: cv2.imwrite(join(images_folder_path,image_name), decoded)
     except: print('couldnt decode image, data lenght was', len(imgdata))
 
 def save_image_pil(img, name):
+    """saving images
+
+    Args:
+        img (Image):PIL type for images
+        name (string): name to give the image
+    """
     image_name = str(name)+'.png'
     try: img.save(join(images_folder_path,image_name))
     except: print('couldnt decode image')
@@ -149,11 +169,11 @@ class ImgThread(threading.Thread):
                 number_of_images+=1
                 try: #show frame
                     if(imgtext!=None):
-                       boxes,classes=decode_bytes(imgtext[2:])
+                       boxes,scores=decode_bytes(imgtext[2:])
                     else:
                        boxes=[]
-                       classes=[]
-                    self._callback(imgdata_complete, number_of_images, boxes,classes)
+                       scores=[]
+                    self._callback(imgdata_complete, number_of_images, boxes,scores)
                     
                 except gi.repository.GLib.Error:
                     print ("image not shown")
@@ -196,7 +216,7 @@ class FrameViewer(Gtk.Window):
 
 			
 
-    def _showframe(self, imgdata_complete, im_name, seen_boxes,classes):
+    def _showframe(self, imgdata_complete, im_name, seen_boxes,scores):
         # Add FPS/img size to window title
         if (self._start != None):
             fps = 1 / (time.time() - self._start)
@@ -207,13 +227,19 @@ class FrameViewer(Gtk.Window):
         # Try to decode JPEG from the data sent from the stream
         try:
             if(imgdata_complete.find(b"\xff\xd8")!=-1):
-                img_decoded= np.array( cv2.imdecode(np.frombuffer(imgdata_complete, np.uint8), -1),dtype=np.uint8)
+                buffer=np.frombuffer(imgdata_complete, np.uint8)
+                decoded=cv2.imdecode(buffer, -1)
+                img_decoded= np.array(decoded,dtype=np.uint8)
                 im=Image.fromarray(img_decoded)
                 draw=ImageDraw.Draw(im)
-                for i,j in zip(seen_boxes,classes): 
-                    draw.rectangle((i[1],i[0],i[3],i[2]), outline = "yellow")
-                    if i[4]<=2 and i[4]>=0 :
-                       print(labels[i[4]-1])
+                for i,score in zip(seen_boxes,scores):
+
+                    y_min,x_min,y_max,x_max,cla=i #cordinates of bounding box and class
+                    draw.rectangle((x_min,y_min,x_max,y_max), outline = "yellow")
+                    if cla<=2 and cla>0 :
+                       draw.text((x_min,y_max-10),labels[i[4]-1]+' '+str(score),fill='white')
+                       print(labels[i[4]-1],score)
+                print('-------------------------------------------------')
                 if SAVE_IMAGES:
                     save_image_pil(im, im_name)
                 img_byte_arr = io.BytesIO()
