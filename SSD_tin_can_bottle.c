@@ -292,7 +292,9 @@ static void detection_handler(){
 	  
 	  //PRINTF("Graph constructor was OK\n");
 	//printf("cnn ok\n");
+	
 	int idx=0;
+	/*
 		    for(int i =0;i<CAMERA_HEIGHT;i++){
 		      for(int j=0;j<CAMERA_WIDTH;j++){
 		        if (i<AT_INPUT_HEIGHT_SSD && j<AT_INPUT_WIDTH_SSD){
@@ -301,6 +303,7 @@ static void detection_handler(){
 		        }
 		    };}
 	//workaround rotation of images
+	
 	for(int i=AT_INPUT_WIDTH_SSD;i>0;--i){
 		for (int j=0;j<AT_INPUT_HEIGHT_SSD/2;++j){
 		
@@ -308,6 +311,7 @@ static void detection_handler(){
 		Input_1[i+j*AT_INPUT_WIDTH_SSD]=Input_1[-i+(AT_INPUT_HEIGHT_SSD-j)*AT_INPUT_WIDTH_SSD];
 		Input_1[-i+(AT_INPUT_HEIGHT_SSD-j)*AT_INPUT_WIDTH_SSD]=pixel;
 		};}
+	*/
 	//printf("image rotated\n");
 	/*  
       rimettere assieme codice al contrario;
@@ -318,15 +322,15 @@ static void detection_handler(){
 	  int8_t* Input_2 = (int8_t*) Input_1 ;
 	  
 
-	  for(int i=0; i<AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD ; ++i){Input_2[i] = Input_1[i]-128; }
+	  //for(int i=0; i<AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD ; ++i){Input_2[i] = Input_1[i]-128; }
 	  //printf("image corrected\n");
 	  //int8_t *attimo=(int8_t*)pi_l2_malloc(AT_INPUT_WIDTH_SSD); good indicare il size of in dimensione*sizeof
 	
-	  pi_ram_write(&HyperRam, l3_buff , Input_2, (uint32_t)AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD);
+	  pi_ram_write(&HyperRam, l3_buff , Input_1, (uint32_t)AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD);
 
-	  pi_ram_write(&HyperRam, l3_buff+AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD , Input_2, (uint32_t) AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD);
+	  pi_ram_write(&HyperRam, l3_buff+AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD , Input_1, (uint32_t) AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD);
 
-	  pi_ram_write(&HyperRam, l3_buff+2*AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD , Input_2, (uint32_t)AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD);
+	  pi_ram_write(&HyperRam, l3_buff+2*AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD , Input_1, (uint32_t)AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD);
 	//printf("ram written \n");
 	/*
 	pi_ram_read(&HyperRam, l3_buff,attimo,AT_INPUT_WIDTH_SSD);
@@ -355,7 +359,8 @@ static void detection_handler(){
 
 		  out_boxes[i*4 +2] = (short int)(FIX2FP(((int)out_boxes[2+i*4])*SSD_tin_can_bottle_Output_1_OUT_QSCALE,SSD_tin_can_bottle_Output_1_OUT_QNORM)*240);
 
-		  out_boxes[i*4 +3] = (short int)(FIX2FP(((int)out_boxes[3+i*4])*SSD_tin_can_bottle_Output_1_OUT_QSCALE,SSD_tin_can_bottle_Output_1_OUT_QNORM)*320);	
+		  out_boxes[i*4 +3] = (short int)(FIX2FP(((int)out_boxes[3+i*4])*SSD_tin_can_bottle_Output_1_OUT_QSCALE,SSD_tin_can_bottle_Output_1_OUT_QNORM)*320);
+			printf(" %d, %d,%d,%d \n",	out_boxes[i*4],out_boxes[i*4+1],out_boxes[i*4+2],out_boxes[i*4+3]);
 
 	} 
 	
@@ -367,7 +372,7 @@ static void detection_handler(){
 	  for (char i=90;i<100;++i)outputs[i+2]=out_classes[i-90];
 		
 	
-	  for(int i=0; i<CAMERA_SIZE ; i++){Input_1[i] = Input_2[i]+128; }
+	  //for(int i=0; i<CAMERA_SIZE ; i++){Input_1[i] = Input_2[i]+128; }
 	  frame_streamer_send_async(streamer, &buffer,pi_task_callback(&streamer_task, send_text, NULL));
 	  //frame_streamer_send_async(txt_streamer, &txt_buffer, pi_task_callback(&cam_task, camera_handler, NULL));
 	  
@@ -383,7 +388,9 @@ static void camera_handler() {
 	
 	pi_camera_capture_async(&camera,  Input_1, CAMERA_WIDTH*CAMERA_HEIGHT,pi_task_callback(&detection_task, detection_handler, NULL) );
 	//printf("camera finished\n");
-	//ReadImageFromFile("/home/bomps/Scrivania/gap_8/conversion_tflite/SSD_bottle_tincan/tflite_model/test_1_out.ppm", AT_INPUT_WIDTH_SSD, AT_INPUT_HEIGHT_SSD, 1, Input_1, AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD*sizeof(char), IMGIO_OUTPUT_CHAR, 0);
+	
+	//ReadImageFromFile("/home/bomps/Scrivania/gap_8/conversion_tflite/converted_1_output/bottle_3_29.ppm", AT_INPUT_WIDTH_SSD, AT_INPUT_HEIGHT_SSD, 1, Input_1, AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD*sizeof(char), IMGIO_OUTPUT_CHAR, 0);
+	//printf("%d %d %d \n",Input_1[0],Input_1[1],Input_1[2]);
 	//pi_task_push(pi_task_callback(&detection_task, detection_handler, NULL));
 	pi_camera_control(&camera, PI_CAMERA_CMD_START, 0);
 }
