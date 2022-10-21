@@ -294,7 +294,7 @@ static void detection_handler(){
 	//printf("cnn ok\n");
 	
 	int idx=0;
-	/*
+	
 		    for(int i =0;i<CAMERA_HEIGHT;i++){
 		      for(int j=0;j<CAMERA_WIDTH;j++){
 		        if (i<AT_INPUT_HEIGHT_SSD && j<AT_INPUT_WIDTH_SSD){
@@ -311,7 +311,7 @@ static void detection_handler(){
 		Input_1[i+j*AT_INPUT_WIDTH_SSD]=Input_1[-i+(AT_INPUT_HEIGHT_SSD-j)*AT_INPUT_WIDTH_SSD];
 		Input_1[-i+(AT_INPUT_HEIGHT_SSD-j)*AT_INPUT_WIDTH_SSD]=pixel;
 		};}
-	*/
+	
 	//printf("image rotated\n");
 	/*  
       rimettere assieme codice al contrario;
