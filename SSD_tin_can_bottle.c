@@ -42,7 +42,7 @@
 #ifdef SILENT
   #define PRINTF(...) ((void) 0)
 #else
-  #define PRINTF PRINTF
+  #define PRINTF printf
 #endif
 
 #define FIX2FP(Val, Precision)    ((float) (Val) / (float) (1<<(Precision)))
@@ -58,55 +58,59 @@
 #define CAMERA_COLORS   (1)
 #define CAMERA_SIZE     (CAMERA_WIDTH*CAMERA_HEIGHT*CAMERA_COLORS)
 #define SCORE_THR       0
-#define HAVE_HIMAX 		  1
 
+#define LED_ON pi_gpio_pin_write(&gpio_device, 2, 1)
+
+#define LED_OFF pi_gpio_pin_write(&gpio_device, 2, 0)
 
 AT_HYPERFLASH_FS_EXT_ADDR_TYPE __PREFIX(_L3_Flash) = 0;
 
-#ifdef __EMUL__
-  char *ImageName;
-  uint8_t Input_1[AT_INPUT_SIZE];
-  
-#else
-  L2_MEM static struct pi_device gpio_device;
-  #define LED_ON pi_gpio_pin_write(&gpio_device, 2, 1)
 
-  #define LED_OFF pi_gpio_pin_write(&gpio_device, 2, 0)
+  L2_MEM static struct pi_device gpio_device;
+
+//streamers for passing text and images
   struct simple_streamer{
   int channel;
   struct pi_transport_header header;
   unsigned int size;
 	};
+
   struct simple_streamer text_streamer;
+  static frame_streamer_t *streamer;// frame streamer
+//devices declarations
   struct pi_device wifi;
   struct pi_device camera;
   struct pi_device cluster_dev;
+  struct pi_device HyperRam;
+//signal definitions for callbacks
   static pi_task_t cam_task;
   static pi_task_t streamer_task;
-  static frame_streamer_t *streamer;
-  //PI_FC_L1 static frame_streamer_t *txt_streamer;
   static pi_task_t detection_task;
-
-  struct pi_device HyperRam;
-  static pi_buffer_t buffer;
-  static uint32_t l3_buff;
-  L2_MEM static uint8_t Input_1[CAMERA_SIZE];
-  
+L2_MEM struct pi_cluster_task task[1];
 
   
-#endif
+
+
+
+//buffers
+  static pi_buffer_t buffer;//buffer for image transfer
+  static uint32_t l3_buff;//l3 memory pointer 
+  L2_MEM static uint8_t Input_1[CAMERA_SIZE];//image storage
+  L2_MEM signed char outputs[TEXT_SIZE];// neural network output storage for sending throught wifi 
+  L2_MEM short int out_boxes[40];
+  L2_MEM signed char out_scores[10];
+  L2_MEM signed char out_classes[10];
+
+  
+
+//callback function declarations
 static void detection_handler();
 static void camera_handler();
 static void main_handler();
 
 
-L2_MEM signed char outputs[TEXT_SIZE];
-// controllare indirizzi malloc perchè importante (strano) 
 
-L2_MEM short int out_boxes[40];
-L2_MEM signed char out_scores[10];
-L2_MEM signed char out_classes[10];
-L2_MEM struct pi_cluster_task task[1];
+
 /*
 #ifdef HAVE_LCD
 static int open_display(struct pi_device *device)
@@ -122,7 +126,7 @@ static int open_display(struct pi_device *device)
 }
 #endif*/
 static void init_wifi() {
-
+	//starting the wifi the wifi value is defined at the beginning of the document and is a 
 	int32_t errors = 0;
 	struct pi_nina_w10_conf nina_conf;
 
@@ -138,14 +142,14 @@ static void init_wifi() {
 	errors = pi_transport_open(&wifi);
 
 #ifdef VERBOSE	
-	//PRINTF("NINA WiFi init:\t\t\t\t%s\n", errors?"Failed":"Ok");
+	PRINTF("NINA WiFi init:\t\t\t\t%s\n", errors?"Failed":"Ok");
 #endif	
 
 	if(errors) pmsis_exit(errors);
 }
 
 static void init_streamer() {
-
+	//frame streamer init
 	struct frame_streamer_conf streamer_conf;
 
 	frame_streamer_conf_init(&streamer_conf);
@@ -163,41 +167,13 @@ static void init_streamer() {
 	pi_buffer_set_format(&buffer, AT_INPUT_WIDTH_SSD, AT_INPUT_HEIGHT_SSD, 1, PI_BUFFER_FORMAT_GRAY);
 
 #ifdef VERBOSE	
-	//PRINTF("Streamer init:\t\t\t\t%s\n", streamer?"Ok":"Failed");
+	PRINTF("Streamer init:\t\t\t\t%s\n", streamer?"Failed":"Ok");
 #endif	
 
 	if(streamer == NULL) pmsis_exit(-1);
 }
-/*
-static void init_txt_streamer() {
 
-	struct frame_streamer_conf streamer_conf;
-
-	frame_streamer_conf_init(&streamer_conf);
-
-	streamer_conf.transport = &wifi;
-	streamer_conf.format = FRAME_STREAMER_FORMAT_RAW;
-	streamer_conf.width = NUMBER_OF_DETECTION*BYTES_DETECTION+2;
-	streamer_conf.height = 1;
-	streamer_conf.depth = 1;
-	streamer_conf.name = "detection_Stream";
-	
-
-	txt_streamer = frame_streamer_open(&streamer_conf);
-
-	pi_buffer_init(&txt_buffer, PI_BUFFER_TYPE_L2, (char*)outputs);
-	pi_buffer_set_format(&txt_buffer, NUMBER_OF_DETECTION*BYTES_DETECTION+2, 1, 1, PI_BUFFER_FORMAT_GRAY);
-	
-	//PRINTF("Streamer init:\t\t\t\t%s\n", txt_streamer?"Ok":"Failed");
-#ifdef VERBOSE	
-	
-#endif	
-
-	if(txt_streamer == NULL) pmsis_exit(-1);
-}
-*/
-
-#ifdef HAVE_HIMAX
+#ifndef FROM_JTAG 
 static int open_camera_himax(struct pi_device *device)
 { //PRINTF("Opening camera\n");
   struct pi_himax_conf cam_conf;
@@ -208,31 +184,17 @@ static int open_camera_himax(struct pi_device *device)
 
   pi_open_from_conf(device, &cam_conf);
   if (pi_camera_open(device))return -1;
-	//{for(int i=0;i<100;++i)//PRINTF("error occurred\n");
-    //return -1;}
-  //for(int i=0;i<100;++i)//PRINTF("Finishing\n");
+
   uint8_t reg_value, set_value;
 
-	// set_value = ANA;
-	// pi_camera_reg_set(&camera, HIMAX_ANA_Register_17, &set_value);
-	// pi_camera_reg_get(&camera, HIMAX_ANA_Register_17, &reg_value);
-	// //PRINTF("ANA %d\n", reg_value);
 
-	// set_value = CLK_DIV;
-	// pi_camera_reg_set(&camera, HIMAX_OSC_CLK_DIV, &set_value);
-	// pi_camera_reg_get(&camera, HIMAX_OSC_CLK_DIV, &reg_value);
-	// //PRINTF("CLK_DIV %d\n", reg_value);
 
 	
     set_value=0;
 	
     pi_camera_reg_set(device, IMG_ORIENTATION, &set_value);
 	pi_camera_reg_get(device, IMG_ORIENTATION, &reg_value);
-  	if (set_value!=reg_value)
-  	{
-    	//PRINTF("Failed to rotate camera image\n");
-    	return -1;
-  	}
+  	
 
     pi_camera_control(device, PI_CAMERA_CMD_AEG_INIT, 0);
 
@@ -247,8 +209,10 @@ static void RunNetwork()
   ////PRINTF("Running on cluster\n");
 //#ifdef PERF
 //  //PRINTF("Start timer\n");
-//  gap_cl_starttimer();
-//  gap_cl_resethwtimer();
+#ifdef PERFORMANCE
+ gap_cl_starttimer();
+gap_cl_resethwtimer();
+#endif
 //#endif
 //#ifndef __EMUL__
   __PREFIX(CNN)(l3_buff,out_boxes,out_classes, out_scores); //(signed short*)(outputs+2),outputs+82,outputs+92);
@@ -260,7 +224,7 @@ static void RunNetwork()
 	*/
 }
 static void send_text(){
-	/**/
+	/* simple function for sending unformatted text over data       */
     pi_transport_send_header(&wifi, &(text_streamer.header), text_streamer.channel, text_streamer.size);
 	pi_transport_send_async(&wifi,outputs,text_streamer.size,pi_task_callback(&cam_task, camera_handler, NULL));	
 }
@@ -289,10 +253,11 @@ static void detection_handler(){
 	  
 
 	  
-	  
-	  //PRINTF("Graph constructor was OK\n");
+	#ifdef VERBOSE	  
+		PRINTF("Graph constructor was OK\n");
+	#endif 
 	//printf("cnn ok\n");
-	
+	#ifndef FROM_JTAG
 	int idx=0;
 	
 		    for(int i =0;i<CAMERA_HEIGHT;i++){
@@ -311,47 +276,51 @@ static void detection_handler(){
 		Input_1[i+j*AT_INPUT_WIDTH_SSD]=Input_1[-i+(AT_INPUT_HEIGHT_SSD-j)*AT_INPUT_WIDTH_SSD];
 		Input_1[-i+(AT_INPUT_HEIGHT_SSD-j)*AT_INPUT_WIDTH_SSD]=pixel;
 		};}
+	#endif
+	#ifdef VERBOSE	
+		printf("image rotated\n");
+	#endif 
 	
-	//printf("image rotated\n");
-	/*  
-      rimettere assieme codice al contrario;
-	  mettere checksum cumulativo somma dei pixel check in tutti i punti (farlo anche su python) idem con patate sui pesi;
-	  controllare singoli layers 
-	  ricordarsi per print da l3 a l2 e poi printare .
-	*/
-	  int8_t* Input_2 = (int8_t*) Input_1 ;
 	  
-
-	  //for(int i=0; i<AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD ; ++i){Input_2[i] = Input_1[i]-128; }
-	  //printf("image corrected\n");
-	  //int8_t *attimo=(int8_t*)pi_l2_malloc(AT_INPUT_WIDTH_SSD); good indicare il size of in dimensione*sizeof
+	  
+	//depending on the kind of quantization used the input may need to be rescaled to  be in the int8 format
+	//int8_t* Input_2 = (int8_t*) Input_1 ;
+	//for(int i=0; i<AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD ; ++i){Input_2[i] = Input_1[i]-128; }
+	  
+	 
 	
 	  pi_ram_write(&HyperRam, l3_buff , Input_1, (uint32_t)AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD);
 
 	  pi_ram_write(&HyperRam, l3_buff+AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD , Input_1, (uint32_t) AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD);
 
 	  pi_ram_write(&HyperRam, l3_buff+2*AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD , Input_1, (uint32_t)AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD);
-	//printf("ram written \n");
-	/*
-	pi_ram_read(&HyperRam, l3_buff,attimo,AT_INPUT_WIDTH_SSD);
-	//PRINTF("posizione attimo %x",attimo);
-	for (int i=0;i<AT_INPUT_WIDTH_SSD;++i){
-		//PRINTF("sono i dati pescati da hyperam %d cosa ho in pancia %d \n",i,attimo[i]);}*/
-	  
-	  
+	#ifdef VERBOSE
+		printf("ram written \n");
+	#endif
 
-	  
-
-
-	  //PRINTF("ci arrivo qua?\n");
+	
 	  uint32_t time_begin=rt_time_get_us(); 
 	  LED_ON;
 	  uint32_t error_cluster = pi_cluster_send_task_to_cl(&cluster_dev, task);
-	  //printf("sent task to clusted %d \n",error_cluster);
-	  //PRINTF("TOTAL TIME IN MICROSECONDS: %d \n",rt_time_get_us()-time_begin);
+	  #ifdef VERBOSE
+		printf("sent task to clusted \t\t\t\t%s\n", error_cluster?"Failed":"Ok");//
+	  #endif
+	 #ifdef PERFORMANCE
+		PRINTF("TOTAL TIME IN MICROSECONDS: %d \n",rt_time_get_us()-time_begin);
+		unsigned int TotalCycles = 0, TotalOper = 0;
+		printf("\n");
+		for (int i=0; i<(sizeof(SSD_Monitor)/sizeof(unsigned int)); i++) {
+			printf("%45s: Cycles: %10d, Operations: %10d, Operations/Cycle: %f\n", SSD_Nodes[i], SSD_Monitor[i], SSD_Op[i], ((float) SSD_Op[i])/ SSD_Monitor[i]);
+			TotalCycles += SSD_Monitor[i]; TotalOper += SSD_Op[i];
+		}
+		printf("\n");
+		printf("%45s: Cycles: %10d, Operations: %10d, Operations/Cycle: %f\n", "Total", TotalCycles, TotalOper, ((float) TotalOper)/ TotalCycles);
+		printf("\n");
+	  	
+	  	
+	  #endif
 	  LED_OFF;
 	  
-	  //pi_l2_free(task,sizeof(struct pi_cluster_task));
 	  for(char i=0;i<10;i+=1){
 	  	out_boxes[i*4] = (short int)(FIX2FP(((int)out_boxes[i*4])*SSD_tin_can_bottle_Output_1_OUT_QSCALE,SSD_tin_can_bottle_Output_1_OUT_QNORM)*240);
 
@@ -360,7 +329,7 @@ static void detection_handler(){
 		  out_boxes[i*4 +2] = (short int)(FIX2FP(((int)out_boxes[2+i*4])*SSD_tin_can_bottle_Output_1_OUT_QSCALE,SSD_tin_can_bottle_Output_1_OUT_QNORM)*240);
 
 		  out_boxes[i*4 +3] = (short int)(FIX2FP(((int)out_boxes[3+i*4])*SSD_tin_can_bottle_Output_1_OUT_QSCALE,SSD_tin_can_bottle_Output_1_OUT_QNORM)*320);
-			printf(" %d, %d,%d,%d \n",	out_boxes[i*4],out_boxes[i*4+1],out_boxes[i*4+2],out_boxes[i*4+3]);
+			//printf(" %d, %d,%d,%d \n",	out_boxes[i*4],out_boxes[i*4+1],out_boxes[i*4+2],out_boxes[i*4+3]);
 
 	} 
 	
@@ -374,7 +343,7 @@ static void detection_handler(){
 	
 	  //for(int i=0; i<CAMERA_SIZE ; i++){Input_1[i] = Input_2[i]+128; }
 	  frame_streamer_send_async(streamer, &buffer,pi_task_callback(&streamer_task, send_text, NULL));
-	  //frame_streamer_send_async(txt_streamer, &txt_buffer, pi_task_callback(&cam_task, camera_handler, NULL));
+	  
 	  
 
 
@@ -383,16 +352,20 @@ static void detection_handler(){
 }
 
 static void camera_handler() {
-	 
+	#ifndef FROM_JTAG 
 	pi_camera_control(&camera, PI_CAMERA_CMD_ON, 0);
 	
 	pi_camera_capture_async(&camera,  Input_1, CAMERA_WIDTH*CAMERA_HEIGHT,pi_task_callback(&detection_task, detection_handler, NULL) );
-	//printf("camera finished\n");
-	
-	//ReadImageFromFile("/home/bomps/Scrivania/gap_8/conversion_tflite/converted_1_output/bottle_3_29.ppm", AT_INPUT_WIDTH_SSD, AT_INPUT_HEIGHT_SSD, 1, Input_1, AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD*sizeof(char), IMGIO_OUTPUT_CHAR, 0);
-	//printf("%d %d %d \n",Input_1[0],Input_1[1],Input_1[2]);
-	//pi_task_push(pi_task_callback(&detection_task, detection_handler, NULL));
+	#ifdef VERBOSE
+	printf("camera finished\n");
+	#endif
 	pi_camera_control(&camera, PI_CAMERA_CMD_START, 0);
+	#else
+	//ReadImageFromFile("/home/bomps/Scrivania/gap_8/conversion_tflite/converted_1_output/bottle_3_29.ppm", AT_INPUT_WIDTH_SSD, AT_INPUT_HEIGHT_SSD, 1, Input_1, AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD*sizeof(char), IMGIO_OUTPUT_CHAR, 0);
+	
+	//pi_task_push(pi_task_callback(&detection_task, detection_handler, NULL));
+	*/
+	#endif
 }
 
 
@@ -407,20 +380,17 @@ int start()
 	  pi_freq_set(PI_FREQ_DOMAIN_FC, FREQ_FC*1000*1000);
 	  pi_freq_set(PI_FREQ_DOMAIN_CL, FREQ_CL*1000*1000);
 	  pi_time_wait_us(100000);
-  //spostare qui le frequenze prova
-  /*
-  #ifdef MEASUREMENTS
-  pi_gpio_pin_configure(NULL, PI_GPIO_A0_PAD_8_A4, PI_GPIO_OUTPUT);
-  pi_gpio_pin_write(NULL, PI_GPIO_A0_PAD_8_A4, 0);
-  #endif   */
-  #ifdef HAVE_HIMAX
+ 
+ 
+  
   pi_gpio_pin_configure(&gpio_device, 2, PI_GPIO_OUTPUT); 
   
 	outputs[0]=-127;
 	outputs[1]=13;
+	#ifndef FROM_JTAG
     int err = open_camera_himax(&camera);
     if (err) {
-      //PRINTF("Failed to open camera\n");
+      PRINTF("Failed to open camera\n");
       pmsis_exit(-2);
     }
     
@@ -432,13 +402,13 @@ int start()
   //printf("ram opened\n");
   if (pi_ram_open(&HyperRam))
   {
-    //PRINTF("Error ram open !\n");
+    PRINTF("Error ram open !\n");
     pmsis_exit(-3);
   }
 
   if (pi_ram_alloc(&HyperRam, &l3_buff, (uint32_t) AT_INPUT_SIZE))
   {
-    //PRINTF("Ram malloc failed !\n");
+    PRINTF("Ram malloc failed !\n");
     pmsis_exit(-4);
   }
   //PRINTF("l3 origin %d \n",l3_buff);
@@ -469,7 +439,7 @@ int start()
       //PRINTF("Error allocating image buffer\n");
       pmsis_exit(-1);}
   
-  init_wifi();
+  init_wifi(); 
   //PRINTF("OPENED_WIFI \n");
   init_streamer();
   //PRINTF("OPENED_STREAMER_IMAGES\n");

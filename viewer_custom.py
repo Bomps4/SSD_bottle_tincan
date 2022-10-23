@@ -63,10 +63,12 @@ import io
 
 VERBOSE=False
 RECEIVE_TIMESTAMP=False #only used for the dataset framework collector
+SCORE_THR=128*0.3
 
 deck_ip = None
 deck_port = None
 labels=["Bottle","Tincan"]
+
 def decode_bytes(byte_arr):
     """byte decoding
 
@@ -81,7 +83,7 @@ def decode_bytes(byte_arr):
     scores=[i for i in struct.iter_unpack('b', byte_arr[80:90])]
     # print(scores)
     classes=[i for i in struct.iter_unpack('b', byte_arr[90:100])]
-    seen_boxes=[tuple(cordinates[idx*4:(idx+1)*4])+classes[idx] for idx,i in enumerate(scores) if (scores[idx][0]>=25)]
+    seen_boxes=[tuple(cordinates[idx*4:(idx+1)*4])+classes[idx] for idx,i in enumerate(scores) if (scores[idx][0]>=SCORE_THR)]
     
     return seen_boxes,scores
 
