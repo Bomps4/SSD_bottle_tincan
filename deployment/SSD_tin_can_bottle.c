@@ -99,10 +99,6 @@ AT_HYPERFLASH_FS_EXT_ADDR_TYPE __PREFIX(_L3_Flash) = 0;
   static pi_task_t detection_task;
 L2_MEM struct pi_cluster_task task[1];
 
-  
-
-
-
 //buffers
   static pi_buffer_t buffer;//buffer for image transfer
   static uint32_t l3_buff;//l3 memory pointer 
@@ -112,12 +108,10 @@ L2_MEM struct pi_cluster_task task[1];
   L2_MEM signed char out_scores[NUMBER_OF_DETECTION]; 
   L2_MEM signed char out_classes[NUMBER_OF_DETECTION];
 
-  
-
 //callback function declarations
-static void detection_handler();
-static void camera_handler();
-static void main_handler();
+	static void detection_handler();
+	static void camera_handler();
+	static void main_handler();
 
 
 
@@ -164,9 +158,9 @@ static void init_streamer() {
 	pi_buffer_init(&buffer, PI_BUFFER_TYPE_L2, Input_1);
 	pi_buffer_set_format(&buffer, AT_INPUT_WIDTH_SSD, AT_INPUT_HEIGHT_SSD, 1, PI_BUFFER_FORMAT_GRAY);
 
-#ifdef VERBOSE	
+	#ifdef VERBOSE	
 	PRINTF("Streamer init:\t\t\t\t%s\n", streamer?"Ok":"Failed");
-#endif	
+	#endif	
 
 	if(streamer == NULL) pmsis_exit(-1);
 }
@@ -208,10 +202,10 @@ int8_t* converter_To_int8(uint8_t* input){
 static void RunNetwork()
 { 
 
-#ifdef PERFORMANCE
-gap_cl_starttimer();
-gap_cl_resethwtimer();
-#endif
+	#ifdef PERFORMANCE
+	gap_cl_starttimer();
+	gap_cl_resethwtimer();
+	#endif
 
   __PREFIX(CNN)(l3_buff,out_boxes,out_classes, out_scores); //(signed short*)(outputs+2),outputs+82,outputs+92);
 
@@ -288,7 +282,7 @@ static void detection_handler(){
 	
 	  uint32_t time_begin=rt_time_get_us(); 
 	  LED_ON;
-	  uint32_t error_cluster = pi_cluster_send_task_to_cl(&cluster_dev, task);
+	  //uint32_t error_cluster = pi_cluster_send_task_to_cl(&cluster_dev, task);
 	  #ifdef VERBOSE
 		printf("sent task to clusted \t\t\t\t%s\n", error_cluster?"Ok":"Failed");
 	  #endif
@@ -311,11 +305,11 @@ static void detection_handler(){
 	  for(char i=0;i<NUMBER_OF_DETECTION;i+=1){
 	  	out_boxes[i*4] = (short int)(FIX2FP(((int)out_boxes[i*4])*SSD_tin_can_bottle_Output_1_OUT_QSCALE,SSD_tin_can_bottle_Output_1_OUT_QNORM)*240);
 
-		  out_boxes[i*4+1 ] = (short int)(FIX2FP(((int)out_boxes[1+i*4])*SSD_tin_can_bottle_Output_1_OUT_QSCALE,SSD_tin_can_bottle_Output_1_OUT_QNORM)*320);
+		out_boxes[i*4+1 ] = (short int)(FIX2FP(((int)out_boxes[1+i*4])*SSD_tin_can_bottle_Output_1_OUT_QSCALE,SSD_tin_can_bottle_Output_1_OUT_QNORM)*320);
 
-		  out_boxes[i*4 +2] = (short int)(FIX2FP(((int)out_boxes[2+i*4])*SSD_tin_can_bottle_Output_1_OUT_QSCALE,SSD_tin_can_bottle_Output_1_OUT_QNORM)*240);
+		out_boxes[i*4 +2] = (short int)(FIX2FP(((int)out_boxes[2+i*4])*SSD_tin_can_bottle_Output_1_OUT_QSCALE,SSD_tin_can_bottle_Output_1_OUT_QNORM)*240);
 
-		  out_boxes[i*4 +3] = (short int)(FIX2FP(((int)out_boxes[3+i*4])*SSD_tin_can_bottle_Output_1_OUT_QSCALE,SSD_tin_can_bottle_Output_1_OUT_QNORM)*320);
+		out_boxes[i*4 +3] = (short int)(FIX2FP(((int)out_boxes[3+i*4])*SSD_tin_can_bottle_Output_1_OUT_QSCALE,SSD_tin_can_bottle_Output_1_OUT_QNORM)*320);
 			
 
 	} 
