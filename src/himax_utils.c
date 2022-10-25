@@ -94,6 +94,8 @@
 #define         HIMAX_ANA_Register_17     0x3067
 #define         HIMAX_PCLK_POLARITY       0x3068
 
+// #define VERBOSE 1
+
 static void reset_exposure_calibration();
 void init_exposure_calibration(unsigned int calibration_size);
 
@@ -356,7 +358,7 @@ void init_exposure_calibration(unsigned int calibration_size)
 
 }
 
-#define DEBUG_EXPOSURE_CALIBRATION 1
+// #define DEBUG_EXPOSURE_CALIBRATION 1
 
 void himax_update_exposure(struct pi_device *camera)
 {
@@ -429,15 +431,21 @@ void himax_update_exposure(struct pi_device *camera)
 
 
 void get_himax_exp_params(struct pi_device *camera){
-    uint8_t value8;
-    uint16_t value16;
+    uint16_t value16_integ_h;
+    uint16_t value16_dig_gain;
+    uint8_t value8_an_gain;
+
+    pi_camera_reg_get16(camera, HIMAX_INTEGRATION_L, HIMAX_INTEGRATION_H, &value16_integ_h);
+    pi_camera_reg_get16(camera, HIMAX_DIGITAL_GAIN_L, HIMAX_DIGITAL_GAIN_H, &value16_dig_gain);
+    pi_camera_reg_get(camera, HIMAX_ANAprintf_GAIN, &value8_an_gain);
+
+#ifdef VERBOSE
     printf("Himax params:\n");
-    pi_camera_reg_get16(camera, HIMAX_INTEGRATION_L, HIMAX_INTEGRATION_H, &value16);
-    printf("\tintegration time: 0x%04x\n", value16);
-    pi_camera_reg_get16(camera, HIMAX_DIGITAL_GAIN_L, HIMAX_DIGITAL_GAIN_H, &value16);
-    printf("\tdigital gain:     0x%04x\n", value16);
-    pi_camera_reg_get(camera, HIMAX_ANAprintf_GAIN, &value8);
-    printf("\tanaprintf gain:   0x%02x\n", value8);    
+    printf("\tintegration time: 0x%04x\n", value16_integ_h);
+    printf("\tdigital gain:     0x%04x\n", value16_dig_gain);
+    printf("\tanaprintf gain:   0x%02x\n", value8_an_gain);    
+#endif VERBOSE
+
 }
 
 
@@ -453,13 +461,15 @@ void write_himax_exp_params(struct pi_device *camera, uint16_t integration_value
      *    8x -> 0x30    
     */
 
+#ifdef VERBOSE
     printf("Setting:\n");
     printf("\tintegration time: 0x%04x\n", integration_value16);
     printf("\tdigital gain:     0x%04x\n", d_gain_value16);
-    printf("\tanaprintf gain:   0x%02x\n", a_gain_value);
+    printf("\tanalog gain:   0x%02x\n", a_gain_value);
+#endif
     // start commit 
     pi_camera_reg_set(camera, HIMAX_GRP_PARAM_HOLD, 0x1);
-    pi_time_wait_us(100000);
+    // pi_time_wait_us(100000);
 
     // disable Auto-Exposure
     _himax_enable_ae(camera, 0);
@@ -469,9 +479,11 @@ void write_himax_exp_params(struct pi_device *camera, uint16_t integration_value
     pi_camera_reg_set(camera,   HIMAX_ANAprintf_GAIN, &a_gain_value);
     // end commit
     pi_camera_reg_set(camera, HIMAX_GRP_PARAM_HOLD, 0x0);
-    pi_time_wait_us(100000);
+    // pi_time_wait_us(100000);
 
-    printf("Reding written registers:\n");
+#ifdef VERBOSE
+    printf("Reading written registers:\n");
     get_himax_exp_params(camera);
+#endif
 
 }
