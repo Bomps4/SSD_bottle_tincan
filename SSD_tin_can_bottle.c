@@ -97,9 +97,9 @@ L2_MEM struct pi_cluster_task task[1];
   static uint32_t l3_buff;//l3 memory pointer 
   L2_MEM static uint8_t Input_1[CAMERA_SIZE];//image storage
   L2_MEM signed char outputs[TEXT_SIZE];// neural network output storage for sending throught wifi 
-  L2_MEM short int out_boxes[40];
-  L2_MEM signed char out_scores[10];
-  L2_MEM signed char out_classes[10];
+  L2_MEM short int out_boxes[NUMBER_OF_DETECTION*4]; //each bounding box is composed of 4 coordinates
+  L2_MEM signed char out_scores[NUMBER_OF_DETECTION]; 
+  L2_MEM signed char out_classes[NUMBER_OF_DETECTION];
 
   
 
@@ -111,22 +111,9 @@ static void main_handler();
 
 
 
-/*
-#ifdef HAVE_LCD
-static int open_display(struct pi_device *device)
-{
-  struct pi_ili9341_conf ili_conf;
-  pi_ili9341_conf_init(&ili_conf);
-  pi_open_from_conf(device, &ili_conf);
-  if (pi_display_open(device))
-    return -1;
-  if (pi_display_ioctl(device, PI_ILI_IOCTL_ORIENTATION, (void *)PI_ILI_ORIENTATION_90))
-    return -1;
-  return 0;
-}
-#endif*/
+
 static void init_wifi() {
-	//starting the wifi the wifi value is defined at the beginning of the document and is a 
+	//starting the wifi the wifi value is defined at the beginning of the document and is a global variable
 	int32_t errors = 0;
 	struct pi_nina_w10_conf nina_conf;
 
@@ -167,7 +154,7 @@ static void init_streamer() {
 	pi_buffer_set_format(&buffer, AT_INPUT_WIDTH_SSD, AT_INPUT_HEIGHT_SSD, 1, PI_BUFFER_FORMAT_GRAY);
 
 #ifdef VERBOSE	
-	PRINTF("Streamer init:\t\t\t\t%s\n", streamer?"Failed":"Ok");
+	PRINTF("Streamer init:\t\t\t\t%s\n", streamer?"Ok":"Failed");
 #endif	
 
 	if(streamer == NULL) pmsis_exit(-1);
@@ -175,53 +162,48 @@ static void init_streamer() {
 
 #ifndef FROM_JTAG 
 static int open_camera_himax(struct pi_device *device)
-{ //PRINTF("Opening camera\n");
-  struct pi_himax_conf cam_conf;
+{ 
+	struct pi_himax_conf cam_conf;
 
-  pi_himax_conf_init(&cam_conf);
+	pi_himax_conf_init(&cam_conf);
 
-  cam_conf.format = PI_CAMERA_QVGA;
+	cam_conf.format = PI_CAMERA_QVGA;
 
-  pi_open_from_conf(device, &cam_conf);
-  if (pi_camera_open(device))return -1;
+	pi_open_from_conf(device, &cam_conf);
+	if (pi_camera_open(device))return -1;
 
-  uint8_t reg_value, set_value;
+	uint8_t reg_value, set_value;
 
 
 
-	
-    set_value=0;
-	
-    pi_camera_reg_set(device, IMG_ORIENTATION, &set_value);
+
+	set_value=0;
+
+	pi_camera_reg_set(device, IMG_ORIENTATION, &set_value);
 	pi_camera_reg_get(device, IMG_ORIENTATION, &reg_value);
-  	
 
-    pi_camera_control(device, PI_CAMERA_CMD_AEG_INIT, 0);
 
-    return 0;
+	pi_camera_control(device, PI_CAMERA_CMD_AEG_INIT, 0);
+
+	return 0;
 }
 #endif
-
-
+int8_t* converter_To_int8(uint8_t* input){
+	int8_t* Input_2=input;
+	for(int i=0; i<AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD ; ++i){Input_2[i] = Input_1[i]-128; }
+	return Input_2;
+}
 
 static void RunNetwork()
 { 
-  ////PRINTF("Running on cluster\n");
-//#ifdef PERF
-//  //PRINTF("Start timer\n");
+
 #ifdef PERFORMANCE
  gap_cl_starttimer();
 gap_cl_resethwtimer();
 #endif
-//#endif
-//#ifndef __EMUL__
+
   __PREFIX(CNN)(l3_buff,out_boxes,out_classes, out_scores); //(signed short*)(outputs+2),outputs+82,outputs+92);
-    //out_boxes, out_classes, out_scores);
-/*
-#else
-  __PREFIX(CNN)(Input_1, out_boxes, out_classes, out_scores);
-#endif
-	*/
+
 }
 static void send_text(){
 	/* simple function for sending unformatted text over data       */
@@ -258,6 +240,7 @@ static void detection_handler(){
 	#endif 
 	//printf("cnn ok\n");
 	#ifndef FROM_JTAG
+	/*cropping image to AT_INPUT_HEIGHT_SSD and AT_INPUT_WIDTH_SSD dimensions*/
 	int idx=0;
 	
 		    for(int i =0;i<CAMERA_HEIGHT;i++){
@@ -267,8 +250,8 @@ static void detection_handler(){
 		        idx+=1;
 		        }
 		    };}
-	//workaround rotation of images
 	
+	/* workaround needed for rotating camera output bug in the current library which doesn't do it autonomously*/
 	for(int i=AT_INPUT_WIDTH_SSD;i>0;--i){
 		for (int j=0;j<AT_INPUT_HEIGHT_SSD/2;++j){
 		
@@ -284,8 +267,7 @@ static void detection_handler(){
 	  
 	  
 	//depending on the kind of quantization used the input may need to be rescaled to  be in the int8 format
-	//int8_t* Input_2 = (int8_t*) Input_1 ;
-	//for(int i=0; i<AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD ; ++i){Input_2[i] = Input_1[i]-128; }
+	//int8_t* Input_2 = converter_To_int8( Input_1 );
 	  
 	 
 	
@@ -303,7 +285,7 @@ static void detection_handler(){
 	  LED_ON;
 	  uint32_t error_cluster = pi_cluster_send_task_to_cl(&cluster_dev, task);
 	  #ifdef VERBOSE
-		printf("sent task to clusted \t\t\t\t%s\n", error_cluster?"Failed":"Ok");//
+		printf("sent task to clusted \t\t\t\t%s\n", error_cluster?"Ok":"Failed");
 	  #endif
 	 #ifdef PERFORMANCE
 		PRINTF("TOTAL TIME IN MICROSECONDS: %d \n",rt_time_get_us()-time_begin);
@@ -329,7 +311,7 @@ static void detection_handler(){
 		  out_boxes[i*4 +2] = (short int)(FIX2FP(((int)out_boxes[2+i*4])*SSD_tin_can_bottle_Output_1_OUT_QSCALE,SSD_tin_can_bottle_Output_1_OUT_QNORM)*240);
 
 		  out_boxes[i*4 +3] = (short int)(FIX2FP(((int)out_boxes[3+i*4])*SSD_tin_can_bottle_Output_1_OUT_QSCALE,SSD_tin_can_bottle_Output_1_OUT_QNORM)*320);
-			//printf(" %d, %d,%d,%d \n",	out_boxes[i*4],out_boxes[i*4+1],out_boxes[i*4+2],out_boxes[i*4+3]);
+			
 
 	} 
 	
@@ -341,7 +323,7 @@ static void detection_handler(){
 	  for (char i=90;i<100;++i)outputs[i+2]=out_classes[i-90];
 		
 	
-	  //for(int i=0; i<CAMERA_SIZE ; i++){Input_1[i] = Input_2[i]+128; }
+	  // returning value to uint8 format for(int i=0; i<CAMERA_SIZE ; i++){Input_1[i] = Input_2[i]+128; }
 	  frame_streamer_send_async(streamer, &buffer,pi_task_callback(&streamer_task, send_text, NULL));
 	  
 	  
@@ -361,9 +343,9 @@ static void camera_handler() {
 	#endif
 	pi_camera_control(&camera, PI_CAMERA_CMD_START, 0);
 	#else
-	//ReadImageFromFile("/home/bomps/Scrivania/gap_8/conversion_tflite/converted_1_output/bottle_3_29.ppm", AT_INPUT_WIDTH_SSD, AT_INPUT_HEIGHT_SSD, 1, Input_1, AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD*sizeof(char), IMGIO_OUTPUT_CHAR, 0);
+	ReadImageFromFile("/home/bomps/Scrivania/gap_8/conversion_tflite/converted_1_output/bottle_3_29.ppm", AT_INPUT_WIDTH_SSD, AT_INPUT_HEIGHT_SSD, 1, Input_1, AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD*sizeof(char), IMGIO_OUTPUT_CHAR, 0);
 	
-	//pi_task_push(pi_task_callback(&detection_task, detection_handler, NULL));
+	pi_task_push(pi_task_callback(&detection_task, detection_handler, NULL));
 	*/
 	#endif
 }
@@ -375,109 +357,100 @@ static void camera_handler() {
 
 
 int start()
-{ PMU_set_voltage(1200, 0);
-	  pi_time_wait_us(100000);
-	  pi_freq_set(PI_FREQ_DOMAIN_FC, FREQ_FC*1000*1000);
-	  pi_freq_set(PI_FREQ_DOMAIN_CL, FREQ_CL*1000*1000);
-	  pi_time_wait_us(100000);
+{	
+
+	PMU_set_voltage(1200, 0);
+	pi_time_wait_us(100000);
+	pi_freq_set(PI_FREQ_DOMAIN_FC, FREQ_FC*1000*1000);
+	pi_freq_set(PI_FREQ_DOMAIN_CL, FREQ_CL*1000*1000);
+	pi_time_wait_us(100000);
  
  
   
-  pi_gpio_pin_configure(&gpio_device, 2, PI_GPIO_OUTPUT); 
-  
+	pi_gpio_pin_configure(&gpio_device, 2, PI_GPIO_OUTPUT); 
+
 	outputs[0]=-127;
 	outputs[1]=13;
 	#ifndef FROM_JTAG
-    int err = open_camera_himax(&camera);
-    if (err) {
-      PRINTF("Failed to open camera\n");
-      pmsis_exit(-2);
-    }
+	int err = open_camera_himax(&camera);
+	if (err) {
+	  PRINTF("Failed to open camera\n");
+	  pmsis_exit(-2);
+	}
     
-  #endif
-  /* Init & open ram. */
-  struct pi_hyperram_conf hyper_conf;
-  pi_hyperram_conf_init(&hyper_conf);
-  pi_open_from_conf(&HyperRam, &hyper_conf);
-  //printf("ram opened\n");
-  if (pi_ram_open(&HyperRam))
-  {
-    PRINTF("Error ram open !\n");
-    pmsis_exit(-3);
-  }
+	#endif
+	
+	struct pi_hyperram_conf hyper_conf;
+	pi_hyperram_conf_init(&hyper_conf);
+	pi_open_from_conf(&HyperRam, &hyper_conf);
+	if (pi_ram_open(&HyperRam))
+	{
+		PRINTF("Error ram open !\n");
+		pmsis_exit(-3);
+	}
 
-  if (pi_ram_alloc(&HyperRam, &l3_buff, (uint32_t) AT_INPUT_SIZE))
-  {
-    PRINTF("Ram malloc failed !\n");
-    pmsis_exit(-4);
-  }
-  //PRINTF("l3 origin %d \n",l3_buff);
+	if (pi_ram_alloc(&HyperRam, &l3_buff, (uint32_t) AT_INPUT_SIZE))
+	{
+		PRINTF("Ram malloc failed !\n");
+		pmsis_exit(-4);
+	}
 
-  
 
-  /*-----------------------OPEN THE CLUSTER--------------------------*/
+
+
+	/*-----------------------OPEN THE CLUSTER--------------------------*/
 	  
-      struct pi_cluster_conf conf;
-	  pi_cluster_conf_init(&conf);
-	  pi_open_from_conf(&cluster_dev, (void *)&conf);
-	  int error=pi_cluster_open(&cluster_dev);
-	  //PRINTF("is cluster giving an error? %d\n",error);
-	  if(error) pmsis_exit(error);
-	  //printf("cluster started\n");
-      
-   int error_cnn=__PREFIX(CNN_Construct)();
-	  //PRINTF("error cnn constructor %d \n",error_cnn);
-	  if (error_cnn)
-	  {
-		printf("Graph constructor exited with an error \n %d",error_cnn);
-		pmsis_exit(-1);
-	  }
-  
+	struct pi_cluster_conf conf;
+	pi_cluster_conf_init(&conf);
+	pi_open_from_conf(&cluster_dev, (void *)&conf);
+	int error=pi_cluster_open(&cluster_dev);
 
-  
-  if(Input_1==NULL){
-      //PRINTF("Error allocating image buffer\n");
-      pmsis_exit(-1);}
-  
-  init_wifi(); 
-  //PRINTF("OPENED_WIFI \n");
-  init_streamer();
-  //PRINTF("OPENED_STREAMER_IMAGES\n");
-  init_simple_streamer();
-  //PRINTF("OPENED_STREAMER_TEXT\n");
-  //printf("starting camera capture\n");
-  pi_task_push(pi_task_callback(&cam_task, camera_handler, NULL));
-  while(true){
+
 	
+	if(error){ 
+	PRINTF("CLUSTER ERROR");
+	pmsis_exit(error);
+	 }
+	  
+	int error_cnn=__PREFIX(CNN_Construct)();
+	  
+	if (error_cnn)
+	{
+	printf("Graph constructor exited with an error \n %d",error_cnn);
+	pmsis_exit(-1);
+	}
+
+
+
+	
+
+	init_wifi(); 
+	#ifdef VERBOSE
+		PRINTF("OPENED_WIFI \n");
+	#endif
+	init_streamer();
+	#ifdef VERBOSE
+		PRINTF("OPENED_STREAMER_IMAGES\n");
+	#endif
+	init_simple_streamer();
+	#ifdef VERBOSE
+		PRINTF("OPENED_STREAMER_TEXT\n");
+		printf("starting camera capture\n");
+	#endif
+	pi_task_push(pi_task_callback(&cam_task, camera_handler, NULL));
+	while(true){
+
 	pi_yield();
-	
-}
-  __PREFIX(CNN_Destruct)();	
-  pmsis_exit(0);
+
+	}
+	__PREFIX(CNN_Destruct)();	
+	pmsis_exit(0);
 
 }
-
-//#ifndef __EMUL__
 int main(void)
 { 
-  //PRINTF("\n\n\t *** OCR SSD ***\n\n");
-  //printf("starting function\n");
+  PRINTF("\n\n\t *** SSD DETECTOR ***\n\n");
+  
   return pmsis_kickoff((void *) start);
 }
-/*
-#else
-int main(int argc, char *argv[])
-{
-    if (argc < 2)
-    {
-        //PRINTF("Usage: ./exe [image_file]\n");
-        exit(-1);
-    }
-    ImageName = argv[1];
-    //PRINTF("\n\n\t *** OCR SSD Emul ***\n\n");
-    start();
-    return 0;
-}
-#endif
-*/
-                
+          
