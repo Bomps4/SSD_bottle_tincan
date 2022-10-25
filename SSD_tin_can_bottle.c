@@ -198,7 +198,7 @@ static void RunNetwork()
 { 
 
 #ifdef PERFORMANCE
- gap_cl_starttimer();
+gap_cl_starttimer();
 gap_cl_resethwtimer();
 #endif
 
@@ -218,19 +218,14 @@ static void init_simple_streamer(){
 static void detection_handler(){
 	  pi_camera_control(&camera, PI_CAMERA_CMD_STOP, 0);
 	  
-	  /*task = pmsis_l2_malloc(sizeof(struct pi_cluster_task));
-	  if(task==NULL) {
-		PRINTF("pi_cluster_task alloc Error!\n ");
-		pmsis_exit(-1);
-	  }*/
-	  //PRINTF("Stack size is %d and %d\n",STACK_SIZE,SLAVE_STACK_SIZE );
+	 
 	  memset(task, 0, sizeof(struct pi_cluster_task));
 	  task->entry = &RunNetwork;
 	  task->stack_size = STACK_SIZE;
 	  task->slave_stack_size = SLAVE_STACK_SIZE;
 	  task->arg = NULL;
 
-	  //printf("task ok\n");
+	 
 
 	  
 
@@ -238,7 +233,6 @@ static void detection_handler(){
 	#ifdef VERBOSE	  
 		PRINTF("Graph constructor was OK\n");
 	#endif 
-	//printf("cnn ok\n");
 	#ifndef FROM_JTAG
 	/*cropping image to AT_INPUT_HEIGHT_SSD and AT_INPUT_WIDTH_SSD dimensions*/
 	int idx=0;
@@ -303,7 +297,7 @@ static void detection_handler(){
 	  #endif
 	  LED_OFF;
 	  
-	  for(char i=0;i<10;i+=1){
+	  for(char i=0;i<NUMBER_OF_DETECTION;i+=1){
 	  	out_boxes[i*4] = (short int)(FIX2FP(((int)out_boxes[i*4])*SSD_tin_can_bottle_Output_1_OUT_QSCALE,SSD_tin_can_bottle_Output_1_OUT_QNORM)*240);
 
 		  out_boxes[i*4+1 ] = (short int)(FIX2FP(((int)out_boxes[1+i*4])*SSD_tin_can_bottle_Output_1_OUT_QSCALE,SSD_tin_can_bottle_Output_1_OUT_QNORM)*320);
@@ -315,11 +309,11 @@ static void detection_handler(){
 
 	} 
 	
-	  for (char i=0;i<80;++i){
+	  for (char i=0;i<NUMBER_OF_DETECTION*sizeof(short int)*4;++i){
 		outputs[i+2]=((signed char*)out_boxes)[i];
 		}
 	
-	  for (char i=80;i<90;++i)outputs[i+2]=out_scores[i-80];
+	  for (char i=NUMBER_OF_DETECTION*sizeof(short int)*4;i<NUMBER_OF_DETECTION*(sizeof(short int)*4+1);++i)outputs[i+2]=out_scores[i-80];
 	  for (char i=90;i<100;++i)outputs[i+2]=out_classes[i-90];
 		
 	
@@ -449,7 +443,7 @@ int start()
 }
 int main(void)
 { 
-  PRINTF("\n\n\t *** SSD DETECTOR ***\n\n");
+  //PRINTF("\n\n\t *** SSD DETECTOR ***\n\n");
   
   return pmsis_kickoff((void *) start);
 }
