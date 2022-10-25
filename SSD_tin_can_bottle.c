@@ -19,8 +19,10 @@
 
 
 
-#include "/home/bomps/Scrivania/gap_8/gap_sdk/frame_streamer/include/tools/frame_streamer.h"
-#include "/home/bomps/Scrivania/gap_8/gap_sdk/frame_streamer/frame_streamer/frame_streamer.c"
+#include "/home/llamberti/work/gap_sdk/libs/frame_streamer/include/tools/frame_streamer.h"
+#include "/home/llamberti/work/gap_sdk/libs/frame_streamer/frame_streamer/frame_streamer.c"
+// #include "/home/bomps/Scrivania/gap_8/gap_sdk/frame_streamer/include/tools/frame_streamer.h"
+// #include "/home/bomps/Scrivania/gap_8/gap_sdk/frame_streamer/frame_streamer/frame_streamer.c"
 #include "SSD_tin_can_bottle.h"
 #include "SSD_tin_can_bottleKernels.h"
 #include "SSD_tin_can_bottleInfo.h"
