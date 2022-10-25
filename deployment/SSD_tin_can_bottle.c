@@ -1,14 +1,24 @@
-/*
- * Copyright (C) 2020 GreenWaves Technologies
- * All rights reserved.
- *
- * This software may be modified and distributed under the terms
- * of the BSD license.  See the LICENSE file for details.
- * 
-
-
-  dump in nntool per inferenza senza passare da gvsoc. 
- */
+/*-----------------------------------------------------------------------------
+ Copyright (C) 2022-2023 University of Bologna, Italy.
+ All rights reserved.                                                           
+                                                                               
+ Licensed under the Apache License, Version 2.0 (the "License");               
+ you may not use this file except in compliance with the License.              
+ See LICENSE.apache.md in the top directory for details.                       
+ You may obtain a copy of the License at                                       
+                                                                               
+   http://www.apache.org/licenses/LICENSE-2.0                                  
+                                                                               
+ Unless required by applicable law or agreed to in writing, software           
+ distributed under the License is distributed on an "AS IS" BASIS,             
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.      
+ See the License for the specific language governing permissions and           
+ limitations under the License.                                                
+                                                                               
+ File:    SSD_tin_can_bottle.c                                                               
+ Author:  Lorenzo Lamberti      <lorenzo.lamberti@studio.unibo.it>    Luca Bompani<luca.bompani5@unibo.it>                       
+ Date:    18.02.2021 
+-------------------------------------------------------------------------------*/
 
 
 
@@ -21,6 +31,7 @@
 
 #include "/home/bomps/Scrivania/gap_8/gap_sdk/frame_streamer/include/tools/frame_streamer.h"
 #include "/home/bomps/Scrivania/gap_8/gap_sdk/frame_streamer/frame_streamer/frame_streamer.c"
+//needed as the gap_sdk is missing the compiled versions. 
 #include "SSD_tin_can_bottle.h"
 #include "SSD_tin_can_bottleKernels.h"
 #include "SSD_tin_can_bottleInfo.h"
@@ -340,7 +351,6 @@ static void camera_handler() {
 	ReadImageFromFile("/home/bomps/Scrivania/gap_8/conversion_tflite/converted_1_output/bottle_3_29.ppm", AT_INPUT_WIDTH_SSD, AT_INPUT_HEIGHT_SSD, 1, Input_1, AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD*sizeof(char), IMGIO_OUTPUT_CHAR, 0);
 	
 	pi_task_push(pi_task_callback(&detection_task, detection_handler, NULL));
-	*/
 	#endif
 }
 
