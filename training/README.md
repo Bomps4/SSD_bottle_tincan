@@ -57,9 +57,7 @@ we provide the configurations files for both quantization aware training and nor
 
 All the metrics available are declared in `models/research/object_detection/eval_util.py`.
 
-By default, [COCO metrics](http://cocodataset.org/#detection-eval) are used. Follows the definition:
-
-![image](images/Coco-metrics.PNG)
+By default, [COCO metrics](http://cocodataset.org/#detection-eval) are used.
 
 You can look at the [Tensorflow model zoo](https://github.com/tensorflow/models/blob/master/research/object_detection/g3doc/tf1_detection_zoo.md) for reference accuracy of the mAP metric over COCO and OpenImages dataset
 
