@@ -43,7 +43,7 @@ You can find all the default config files in `models/research/object_detection/s
 
 More details on the essential fields to set can be found [here](https://tensorflow-object-detection-api-tutorial.readthedocs.io/en/latest/training.html#configuring-a-training-pipeline) and at the "Useful stuff" paragraph.
 
-we provide the configurations files 
+we provide the configurations files for both quantization aware training and normal training. 
 
 
 ### Metrics
@@ -80,5 +80,5 @@ Example testion command:
 
 The checkpoints produced by the training of the neural network requires to be exported in a format that can  be converted in a tflite format for later deployment. First of all you'll need to use the export_tflite_ssd_graph.py python script which you can find in the training directory . An example
 ``` python export_tflite_ssd_graph.py --trained_checkpoint_prefix /path/to/checkpoint/model.ckpt-#### --
- output_directory ./ --pipeline_config_path /path/to/configs/ssd_mobilenet_v2_oid_v4_copy.config ```
+ output_directory ./ --pipeline_config_path /path/to/configs/ssd_mobilenet_v2_oid_v4_copy.config  ```
 it exports a file called tflite_graph.pb in the directory indicated (the current one)
