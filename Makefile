@@ -75,7 +75,7 @@ else #GAP8
 	ifeq '$(TARGET_CHIP)' 'GAP8_V3'
 	FREQ_CL?=175
 	else
-		FREQ_CL?=160
+		FREQ_CL?=130
 	endif
 	FREQ_FC?=250
 endif
