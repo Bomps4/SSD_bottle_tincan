@@ -78,12 +78,15 @@ def decode_bytes(byte_arr):
     Returns:
         tuple[lists]: [0] list of y_min,x_min,y_max,x_max,class of bounding boxes, list of scores associated with each bounding boxes
     """
-    cordinates=[struct.unpack('h',byte_arr[i*2:(i+1)*2])[0] for i in range(0,40)]
-    # print(cordinates)
-    scores=[i for i in struct.iter_unpack('b', byte_arr[80:90])]
-    # print(scores)
-    classes=[i for i in struct.iter_unpack('b', byte_arr[90:100])]
-    seen_boxes=[tuple(cordinates[idx*4:(idx+1)*4])+classes[idx] for idx,i in enumerate(scores) if (scores[idx][0]>=SCORE_THR)]
+	try:
+		cordinates=[struct.unpack('h',byte_arr[i*2:(i+1)*2])[0] for i in range(0,40)]
+		# print(cordinates)
+		scores=[i for i in struct.iter_unpack('b', byte_arr[80:90])]
+		# print(scores)
+		classes=[i for i in struct.iter_unpack('b', byte_arr[90:100])]
+		seen_boxes=[tuple(cordinates[idx*4:(idx+1)*4])+classes[idx] for idx,i in enumerate(scores) if (scores[idx][0]>=SCORE_THR)]
+	except:
+		seen_boxes,scores=[],[]
     
     return seen_boxes,scores
 

@@ -12,11 +12,18 @@ Open Images is a dataset of ~9M images annotated with image-level labels, object
 
 There is a [GitHub Repo](https://github.com/EscVM/OIDv4_ToolKit) that allows to download all the images of this this dataset containing a specific class (and only that class!).The annotations of the images will include just labels and boxes for that class too (for example I downloaded just images of license plates).
 
-Example of a command for executing OIDv4_ToolKit:
-```python3 main.py downloader --classes Vehicle_registration_plate --type_csv all```
+Example of a command for executing OIDv4_ToolKit
+
+`python3 main.py downloader --classes classes.txt --type_csv all`
+
 > **--classes** : you specify what classes you want to download (write the corresponding label). if the class name has a space in it , like "polar bear", you must write it with **underscores** "polar_bear". To download multiple classes, you can create a classes.txt file (and give this to the --classes opt) in which each line corresponds to a class name.
 > 
 >**--type_cvs** : you can select "train", "test", "validation", "all". Selecting "all" you will download 3 folders with images divided into train, valid and test sets (so you are downloading all the images available for your class)
+
+we provide a simple data augmentation utility which attach a black stip of varing length to the rightmost side of an image 
+
+ 
+
 
 ### TFRecord generation
 
@@ -62,7 +69,8 @@ Use the `train_eval_model_main.py` script to train your model. It will save chec
 
 
 Example training command:
-```python train_eval_model_main.py --pipeline_config_path=config/ssd_mobilenet_v2_oid_v4.config --model_dir=training/ --alsologtostderr ```
+
+`python train_eval_model_main.py --pipeline_config_path=config/ssd_mobilenet_v2_oid_v4.config --model_dir=training/ --alsologtostderr`
 
 > **--model_dir** : where checkpoints ad tensorboard logs will be saved
 
@@ -78,7 +86,14 @@ Example testion command:
 
 ### FROZEN GRAPH EXPORT 
 
-The checkpoints produced by the training of the neural network requires to be exported in a format that can  be converted in a tflite format for later deployment. First of all you'll need to use the export_tflite_ssd_graph.py python script which you can find in the training directory . An example
-``` python export_tflite_ssd_graph.py --trained_checkpoint_prefix /path/to/checkpoint/model.ckpt-#### --
- output_directory ./ --pipeline_config_path /path/to/configs/ssd_mobilenet_v2_oid_v4_copy.config  ```
+The checkpoints produced by the training of the neural network requires to be exported in a format that can  be converted in  tflite for later deployment. First of all you'll need to use the export_tflite_ssd_graph.py python script which you can find in the training directory . An example
+`python export_tflite_ssd_graph.py --trained_checkpoint_prefix ./model.ckpt-### --output_directory ./ --pipeline_config_path /home/bomps/Scrivania/gap_8/date_paper/faulty_non_symmetric/finetuning_deployment/configs/ssd_mobilenet_v2_oid_v4_copy.config`
+
+
 it exports a file called tflite_graph.pb in the directory indicated (the current one)
+
+## TFLITE CONVERSION
+
+the conversion of the frozen graph can be done using the tflite_convert command. usage example:
+
+`tflite_convert --graph_def_file=tflite_graph.pb --output_file=graph.tflite --inference_type=QUANTIZED_UINT8 --input_arrays=normalized_input_image_tensor --output_arrays=TFLite_Detection_PostProcess,TFLite_Detection_PostProcess:1,TFLite_Detection_PostProcess:2,TFLite_Detection_PostProcess:3 --mean_values=128 --std_dev_values=127.5 --input_shapes=1,240,320,3 --allow_custom_ops --inference_input_type=QUANTIZED_UINT8`
