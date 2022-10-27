@@ -126,6 +126,7 @@ class ImgThread(threading.Thread):
         number_of_images = 0
         left_out=0
         starting_point=None
+        First=False
 
         if SAVE_IMAGES: # create directory to save images
             os.makedirs(images_folder_path, exist_ok=True)
@@ -137,15 +138,19 @@ class ImgThread(threading.Thread):
             # Look for start-of-frame and end-of-frame
             start_idx = strng.find(b"\xff\xd8")
             end_idx = strng.find(b"\xff\xd9")
-
+            
             # Concatenate image data, once finished send it to the UI
             if start_idx >= 0:
                 # print("preparo l'immagine")
+				
                 imgdata += strng[:start_idx]
                 starting_point=imgdata.rfind(b"\x81\r")
-                if(starting_point>=0):
+                if(starting_point>=0 ):
+                    if First:
                        imgtext=imgdata[starting_point:starting_point+102]
                        imgdata=imgdata[:starting_point]+imgdata[starting_point+102:]
+                    else:
+                       First=True
                        
                 #put in another variable the complete image
                 imgdata_complete = imgdata

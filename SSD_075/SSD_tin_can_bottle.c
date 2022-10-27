@@ -156,7 +156,7 @@ static void init_streamer() {
 	pi_buffer_set_format(&buffer, AT_INPUT_WIDTH_SSD, AT_INPUT_HEIGHT_SSD, 1, PI_BUFFER_FORMAT_GRAY);
 
 #ifdef VERBOSE	
-	PRINTF("Streamer init:\t\t\t\t%s\n", streamer?"Ok":"Failed");
+	PRINTF("Streamer init:\t\t\t\t%s\n", streamer?"Failed":"Ok");
 #endif	
 
 	if(streamer == NULL) pmsis_exit(-1);
@@ -281,7 +281,7 @@ static void detection_handler(){
 	  LED_ON;
 	  uint32_t error_cluster = pi_cluster_send_task_to_cl(&cluster_dev, task);
 	  #ifdef VERBOSE
-		printf("sent task to clusted \t\t\t\t%s\n", error_cluster?"Ok":"Failed");
+		printf("sent task to clusted \t\t\t\t%s\n", error_cluster?"Failed":"Ok");
 	  #endif
 	 #ifdef PERFORMANCE
 		PRINTF("TOTAL TIME IN MICROSECONDS: %d \n",rt_time_get_us()-time_begin);
