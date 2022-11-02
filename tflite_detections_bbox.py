@@ -12,20 +12,29 @@ from sklearn.metrics import average_precision_score
 import glob
 import copy
 import cv2
+import argparse
+
 LABELS=['Bottle','Tin Can']
+
+def stript_to_float(string):
+	splits=string.split('/')
+	name=splits[-1]
+	name=name.split('.jpg')[0]
+	return float(name)
 def select (img_paths,temporal_delay):
 	selected=[]
 	starting=0
 	for i in img_paths:
 		splits=i.split('/')
 		name=splits[-1]
-		name=name.split('.')[0]
-		if(int(name)-starting>temporal_delay):
+		name=name.split('.jpg')[0]
+
+		if(float(name)-starting>temporal_delay):
 			selected.append(i)
-			starting=int(name)
+			starting=float(name)
 	return selected
 
-def prediction(intepreter,image):
+def prediction(interpreter,image):
 	input_details = interpreter.get_input_details()
 	output_details = interpreter.get_output_details()
 	nn_height = input_details[0]['shape'][1]
@@ -53,8 +62,7 @@ def prediction(intepreter,image):
 	output_data_1 = np.array(interpreter.get_tensor(output_details[1]['index'])).astype(int)
 	output_data_2 = np.array(interpreter.get_tensor(output_details[2]['index']))
 	output_data_3 = np.array(interpreter.get_tensor(output_details[3]['index']))
-	
-	
+
 	boolena=output_data_2>0.3
 	output_data=output_data[boolena]
 	output_data=output_data*np.array([height,width, height,width])[None,:]
@@ -67,7 +75,7 @@ def prediction(intepreter,image):
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description='Connect to AI-deck JPEG streamer example')
 	parser.add_argument("-m",  default="/home/bomps/Scrivania/gap_8/date_paper/true_symmetric/graph.tflite", metavar="model save", help="path for saved model in tflite format")
-	parser.add_argument("-p", default='/home/bomps/Scrivania/gap_8/Codice/testset', metavar="save images", help="directory of saved images")
+	parser.add_argument("-p", default='/home/bomps/Scrivania/gap_8/date_paper/faulty_non_symmetric/dataset_mov/images_folder0.2/images_folder', metavar="save images", help="directory of saved images")
 	parser.add_argument("-s",default="",help="directory of saved images with detections")
 	parser.add_argument("-t",type=int,default='0',help="time delay for undersampling")
 
@@ -75,29 +83,30 @@ if __name__ == "__main__":
 	model_path=args.m
 	delay=args.t
 	image_directory=args.p
-	img_paths=sorted(glob.glob(image_directory+'/*.jpg'))
+	img_paths=sorted(glob.glob(image_directory+'/*.jpg'),key=stript_to_float)
 	INTERPRETER = tf.lite.Interpreter(
 		  model_path=model_path,
 		  experimental_delegates=None)
 	INTERPRETER.allocate_tensors()
 	img_paths=select(img_paths,delay)
+
 	for i in img_paths:
 		detections,classes=prediction(INTERPRETER,i)
-		im=Image.open(img_decoded)
-        draw=ImageDraw.Draw(im)
+		
+		im=Image.open(i)
+		draw=ImageDraw.Draw(im)
 		for det,cla in zip(detections,classes):
-			y_min,x_min,y_max,x_max=det #cordinates of bounding box and class
+			y_min,x_min,y_max,x_max=det #cordinates of bounding box 
 			draw.rectangle((x_min,y_min,x_max,y_max), outline = "yellow")
-			if cla<=2 and cla>0 :
-				draw.text((x_min,y_max-10),LABELS[cla-1],fill='white')
+			if cla<=1 and cla>=0 :
+				draw.text((x_min,y_max-10),LABELS[cla],fill='white')
 		if(args.s==""):
-			name=i.split('.')[0]
+			name=i.split('.jpg')[0]
 		else:
-			name=i.split('.')[0]
-			name=args.s+'/'+i.split('/')[-1]
-		
+			name=i.split('.jpg')[0]
+			name=args.s+'/'+name.split('/')[-1]
 		im.save(name+'_bbdraw.jpg')
-		
+
 		
 
 
