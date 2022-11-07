@@ -64,11 +64,10 @@ import io
 VERBOSE=False
 RECEIVE_TIMESTAMP=False #only used for the dataset framework collector
 SCORE_THR=128*0.3
-
+TEXTBYTES=104
 deck_ip = None
 deck_port = None
 labels=["Bottle","Tincan"]
-
 def decode_bytes(byte_arr):
     """byte decoding
 
@@ -78,11 +77,12 @@ def decode_bytes(byte_arr):
     Returns:
         tuple[lists]: [0] list of y_min,x_min,y_max,x_max,class of bounding boxes, list of scores associated with each bounding boxes
     """
+    global img_id
     cordinates=[struct.unpack('h',byte_arr[i*2:(i+1)*2])[0] for i in range(0,40)]
-    # print(cordinates)
     scores=[i for i in struct.iter_unpack('b', byte_arr[80:90])]
-    # print(scores)
-    classes=[i for i in struct.iter_unpack('b', byte_arr[90:100])]
+    classes=[i for i in struct.iter_unpack('b', byte_arr[90:100])] 
+    
+  
     seen_boxes=[tuple(cordinates[idx*4:(idx+1)*4])+classes[idx] for idx,i in enumerate(scores) if (scores[idx][0]>=SCORE_THR)]
     
     return seen_boxes,scores
@@ -115,6 +115,7 @@ class ImgThread(threading.Thread):
         threading.Thread.__init__(self, daemon=True)
         self._callback = callback
     def run(self):
+        global img_id
         print("Connecting to socket on {}:{}...".format(deck_ip, deck_port))
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         client_socket.connect((deck_ip, deck_port))
@@ -124,6 +125,8 @@ class ImgThread(threading.Thread):
         imgtext = None
         imgdata_complete = None
         number_of_images = 0
+        img_buffer=[0,0]
+        current=True
         left_out=0
         starting_point=None
         First=False
@@ -135,30 +138,48 @@ class ImgThread(threading.Thread):
             strng = client_socket.recv(512)
             if VERBOSE: print("\nsize of packet received:", len(strng), "\n")
             if VERBOSE: print (binascii.hexlify(strng))
+            
             # Look for start-of-frame and end-of-frame
             start_idx = strng.find(b"\xff\xd8")
             end_idx = strng.find(b"\xff\xd9")
             
+			
             # Concatenate image data, once finished send it to the UI
             if start_idx >= 0:
-                # print("preparo l'immagine")
+				
+                
+                #ghazaleh.amiri@studio.unibo.it
 				
                 imgdata += strng[:start_idx]
-                starting_point=imgdata.rfind(b"\x81\r")
-                if(starting_point>=0 ):
-                    if First:
-                       imgtext=imgdata[starting_point:starting_point+102]
-                       imgdata=imgdata[:starting_point]+imgdata[starting_point+102:]
-                    else:
-                       First=True
+                starting_point=imgdata.rfind(b"\x81\x81\x81\x81")
+                if(starting_point>=0 ):                  
+                       imgtext=imgdata[starting_point:starting_point+TEXTBYTES]
+                       imgdata=imgdata[:starting_point]+imgdata[starting_point+TEXTBYTES:]
                        
                 #put in another variable the complete image
-                imgdata_complete = imgdata
+                
+                if(current):
+                     img_buffer[0]=imgdata
+                     current=False
+                else:
+                     img_buffer[1]=img_buffer[0] #image buffer for strange ordering of jpeg header
+                     img_buffer[0]=imgdata
+                     
 				
-                #start the acquisition of the new image
+                
                 imgdata = strng[start_idx:]
-
+                
+                if(img_buffer[1]==0):
+                     continue
+                imgdata_complete=img_buffer[1]
+                
+				
+                
+                #start the acquisition of the new image
+                
+                print('sono imagedata dopo',imgdata)
                 # search for the footer in the complete_image and ignore it (Temporal fix: the footer is transmitted not at the end of each image so we just discard it to not break the image)
+                #print(imgdata_complete)
                 end_idx = imgdata_complete.find(b"\xff\xd9")
                 if end_idx >= 0 and imgdata_complete:
                     imgdata_complete = imgdata_complete[0:end_idx] + imgdata_complete[end_idx+2:]
@@ -169,14 +190,16 @@ class ImgThread(threading.Thread):
 
                 # Now append the jpeg footer at the end of the complete image. We do this before saving or visualizing the image, so it can be decoded correctly
                 imgdata_complete = imgdata_complete + (b"\xff\xd9") 
+                
+                       
                 if VERBOSE: print('len strng %d  \t Bytes imgdata  %d\t \n\n' % (len(strng), len(imgdata_complete)-308 )) #308 = len(header)+len(footer)
                 
                 # if SAVE_IMAGES==True and (number_of_images % 1 ==0 ): #saves just one every 5 images to not overload
                 #     save_image_bytearray(imgdata_complete, number_of_images)
                 number_of_images+=1
                 try: #show frame
-                    if(imgtext!=None):
-                       boxes,scores=decode_bytes(imgtext[2:])
+                    if(imgtext!=None):                       
+                       boxes,scores=decode_bytes(imgtext[4:])
                     else:
                        boxes=[]
                        scores=[]
@@ -240,7 +263,7 @@ class FrameViewer(Gtk.Window):
 				
                 decoded=cv2.imdecode(buffer, -1)
                 img_decoded= np.array(decoded,dtype=np.uint8)
-                im=Image.fromarray(img_decoded)
+                im=Image.fromarray(img_decoded).convert('RGB')
                 draw=ImageDraw.Draw(im)
                 for i,score in zip(seen_boxes,scores):
 
@@ -287,3 +310,4 @@ deck_ip = args.n
 fw = FrameViewer()
 fw.show_all()
 Gtk.main()
+#quantization 

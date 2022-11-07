@@ -19,7 +19,6 @@ void SSD_tin_can_bottleModel(unsigned int L1Memory, unsigned int L2Memory, unsig
 
     SetUsedFilesNames(0, 3, "CNN_BasicKernels_SQ8.h", "SSD_tin_can_bottle.h", "SSD_BasicKernels.h");
     SetGeneratedFilesNames("SSD_tin_can_bottleKernels.c", "SSD_tin_can_bottleKernels.h");
-    AT_SetGraphCtrl(AT_GRAPH_MONITOR_CYCLES, AT_OPT_ON);
     AT_SetGraphCtrl(AT_GRAPH_MONITOR_CVAR_NAME, AT_OPT_VAL("SSD_Monitor"));
     AT_SetGraphCtrl(AT_GRAPH_PRODUCE_NODE_NAMES, AT_OPT_ON);
     AT_SetGraphCtrl(AT_GRAPH_PRODUCE_NODE_CVAR_NAME, AT_OPT_VAL("SSD_Nodes"));

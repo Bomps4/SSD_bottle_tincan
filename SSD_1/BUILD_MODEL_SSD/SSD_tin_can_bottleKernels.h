@@ -6,9 +6,9 @@
 #include "SSD_tin_can_bottle.h"
 #include "SSD_BasicKernels.h"
 #define _SSD_tin_can_bottle_L1_Memory_SIZE 52716
-#define _SSD_tin_can_bottle_L2_Memory_SIZE 229996
+#define _SSD_tin_can_bottle_L2_Memory_SIZE 219996
 extern char *SSD_tin_can_bottle_L1_Memory; /* Size given for generation: 52736 bytes, used: 52716 bytes */
-extern char *SSD_tin_can_bottle_L2_Memory; /* Size used for generation: 229996 bytes */
+extern char *SSD_tin_can_bottle_L2_Memory; /* Size used for generation: 219996 bytes */
 extern void S3_Conv2d_32x3x3x3_Relu6(
 		signed char * __restrict__ In,
 		signed char * __restrict__ Filter,
@@ -681,7 +681,6 @@ extern int SSD_tin_can_bottleCNN(
 		signed short * __restrict__ Output_1,
 		signed char * __restrict__ Output_2,
 		signed char * __restrict__ Output_3);
-extern unsigned int SSD_Monitor[93];
 extern char * SSD_Nodes[93];
 extern unsigned int SSD_Op[93];
 #endif

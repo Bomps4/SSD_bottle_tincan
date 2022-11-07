@@ -15,7 +15,7 @@ set graph_produce_operinfos_cvar_name SSD_Op
 set graph_produce_node_cvar_name SSD_Nodes
 set graph_produce_node_names true
 set graph_produce_operinfos true
-set graph_monitor_cycles true
+set graph_monitor_cycles false
 
 #set graph_trace_exec true
 

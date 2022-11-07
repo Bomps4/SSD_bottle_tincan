@@ -55,7 +55,7 @@
 #define CAMERA_HEIGHT   (244)
 #define NUMBER_OF_DETECTION (10)
 #define BYTES_DETECTION (10)
-#define EXTRA_RECOGNITION (2)
+#define EXTRA_RECOGNITION (4)
 #define TEXT_SIZE 		(NUMBER_OF_DETECTION*BYTES_DETECTION +EXTRA_RECOGNITION)
 #define CAMERA_COLORS   (1)
 #define CAMERA_SIZE     (CAMERA_WIDTH*CAMERA_HEIGHT*CAMERA_COLORS)
@@ -67,7 +67,7 @@
 
 AT_HYPERFLASH_FS_EXT_ADDR_TYPE __PREFIX(_L3_Flash) = 0;
 
-
+  bool sel;
   L2_MEM static struct pi_device gpio_device;
 
 //streamers for passing text and images
@@ -89,7 +89,7 @@ AT_HYPERFLASH_FS_EXT_ADDR_TYPE __PREFIX(_L3_Flash) = 0;
   static pi_task_t streamer_task;
   static pi_task_t detection_task;
 L2_MEM struct pi_cluster_task task[1];
-
+  
   
 
 
@@ -210,7 +210,9 @@ gap_cl_resethwtimer();
 static void send_text(){
 	/* simple function for sending unformatted text over data       */
     pi_transport_send_header(&wifi, &(text_streamer.header), text_streamer.channel, text_streamer.size);
-	pi_transport_send_async(&wifi,outputs,text_streamer.size,pi_task_callback(&cam_task, camera_handler, NULL));	
+	pi_transport_send(&wifi,outputs,text_streamer.size);
+	pi_task_push(pi_task_callback(&cam_task, camera_handler, NULL));	
+	//provare a srotolare
 }
 
 static void init_simple_streamer(){
@@ -218,7 +220,9 @@ static void init_simple_streamer(){
 	text_streamer.size=TEXT_SIZE;
 }
 static void detection_handler(){
+	  #ifndef FROM_JTAG
 	  pi_camera_control(&camera, PI_CAMERA_CMD_STOP, 0);
+	  #endif
 	  
 	 
 	  memset(task, 0, sizeof(struct pi_cluster_task));
@@ -302,26 +306,43 @@ static void detection_handler(){
 	  for(char i=0;i<NUMBER_OF_DETECTION;i+=1){
 	  	out_boxes[i*4] = (short int)(FIX2FP(((int)out_boxes[i*4])*SSD_tin_can_bottle_Output_1_OUT_QSCALE,SSD_tin_can_bottle_Output_1_OUT_QNORM)*240);
 
-		  out_boxes[i*4+1 ] = (short int)(FIX2FP(((int)out_boxes[1+i*4])*SSD_tin_can_bottle_Output_1_OUT_QSCALE,SSD_tin_can_bottle_Output_1_OUT_QNORM)*320);
+		out_boxes[i*4+1 ] = (short int)(FIX2FP(((int)out_boxes[1+i*4])*SSD_tin_can_bottle_Output_1_OUT_QSCALE,SSD_tin_can_bottle_Output_1_OUT_QNORM)*320);
 
-		  out_boxes[i*4 +2] = (short int)(FIX2FP(((int)out_boxes[2+i*4])*SSD_tin_can_bottle_Output_1_OUT_QSCALE,SSD_tin_can_bottle_Output_1_OUT_QNORM)*240);
+		out_boxes[i*4 +2] = (short int)(FIX2FP(((int)out_boxes[2+i*4])*SSD_tin_can_bottle_Output_1_OUT_QSCALE,SSD_tin_can_bottle_Output_1_OUT_QNORM)*240);
 
-		  out_boxes[i*4 +3] = (short int)(FIX2FP(((int)out_boxes[3+i*4])*SSD_tin_can_bottle_Output_1_OUT_QSCALE,SSD_tin_can_bottle_Output_1_OUT_QNORM)*320);
-			
+		out_boxes[i*4 +3] = (short int)(FIX2FP(((int)out_boxes[3+i*4])*SSD_tin_can_bottle_Output_1_OUT_QSCALE,SSD_tin_can_bottle_Output_1_OUT_QNORM)*320);
+		#ifdef MAP
+		printf("Draw_boxes(%d,%d,%d,%d)\n",out_boxes[i*4],out_boxes[i*4+1 ],out_boxes[i*4 +2],out_boxes[i*4 +3]);
+		printf("SCORES:%d\n",out_scores[i]);
+		printf("CLASS:%d\n",out_classes[i]);
+		#endif
 
 	} 
+		#ifdef MAP
+		pmsis_exit(0);
+		#endif
 	
 	  for (char i=0;i<NUMBER_OF_DETECTION*sizeof(short int)*4;++i){
-		outputs[i+2]=((signed char*)out_boxes)[i];
+		outputs[i+EXTRA_RECOGNITION]=((signed char*)out_boxes)[i];
 		}
 	
-	  for (char i=NUMBER_OF_DETECTION*sizeof(short int)*4;i<NUMBER_OF_DETECTION*(sizeof(short int)*4+1);++i)outputs[i+2]=out_scores[i-80];
-	  for (char i=90;i<100;++i)outputs[i+2]=out_classes[i-90];
-		
-	
-	  // returning value to uint8 format for(int i=0; i<CAMERA_SIZE ; i++){Input_1[i] = Input_2[i]+128; }
-	  frame_streamer_send_async(streamer, &buffer,pi_task_callback(&streamer_task, send_text, NULL));
+	  for (char i=NUMBER_OF_DETECTION*sizeof(short int)*4;i<NUMBER_OF_DETECTION*(sizeof(short int)*4+1);++i)outputs[i+EXTRA_RECOGNITION]=out_scores[i-80];
+	  for (char i=90;i<100;++i)outputs[i+EXTRA_RECOGNITION]=out_classes[i-90];
+	  /*
+		if(sel){for (char i=0;i<NUMBER_OF_DETECTION*sizeof(short int)*4;++i){
+		outputs[i+EXTRA_RECOGNITION]=127;
+		}
+			}
+		else{for (char i=0;i<NUMBER_OF_DETECTION*sizeof(short int)*4;++i){
+		outputs[i+EXTRA_RECOGNITION]=0;
+
+		}}*/
 	  
+	  
+	  // returning value to uint8 format for(int i=0; i<CAMERA_SIZE ; i++){Input_1[i] = Input_2[i]+128; }
+	  frame_streamer_send(streamer, &buffer);
+	  pi_task_push(pi_task_callback(&streamer_task, send_text, NULL));
+	  //try putting waits to disaccoppiare decouple
 	  
 
 
@@ -339,10 +360,14 @@ static void camera_handler() {
 	#endif
 	pi_camera_control(&camera, PI_CAMERA_CMD_START, 0);
 	#else
-	ReadImageFromFile("/home/bomps/Scrivania/gap_8/conversion_tflite/converted_1_output/bottle_3_29.ppm", AT_INPUT_WIDTH_SSD, AT_INPUT_HEIGHT_SSD, 1, Input_1, AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD*sizeof(char), IMGIO_OUTPUT_CHAR, 0);
+	sel=!sel;
+	if(sel){
+	ReadImageFromFile("/home/bomps/Scrivania/SSD_bottle_tincan/fullblack.ppm", AT_INPUT_WIDTH_SSD, AT_INPUT_HEIGHT_SSD, 1, Input_1, AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD*sizeof(char), IMGIO_OUTPUT_CHAR, 0);}
+	else{ReadImageFromFile("/home/bomps/Scrivania/SSD_bottle_tincan/fullwhite.ppm", AT_INPUT_WIDTH_SSD, AT_INPUT_HEIGHT_SSD, 1, Input_1, AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD*sizeof(char), IMGIO_OUTPUT_CHAR, 0);}
 	
+	printf("FINISHED READING \n");
 	pi_task_push(pi_task_callback(&detection_task, detection_handler, NULL));
-	*/
+	
 	#endif
 }
 
@@ -353,8 +378,8 @@ static void camera_handler() {
 
 
 int start()
-{	
-
+{
+	sel=true;
 	PMU_set_voltage(1200, 0);
 	pi_time_wait_us(100000);
 	pi_freq_set(PI_FREQ_DOMAIN_FC, FREQ_FC*1000*1000);
@@ -364,9 +389,10 @@ int start()
  
   
 	pi_gpio_pin_configure(&gpio_device, 2, PI_GPIO_OUTPUT); 
+	for (int i=0;i<EXTRA_RECOGNITION;++i){
+	outputs[i]=-127;
+	}
 
-	outputs[0]=-127;
-	outputs[1]=13;
 	#ifndef FROM_JTAG
 	int err = open_camera_himax(&camera);
 	if (err) {
