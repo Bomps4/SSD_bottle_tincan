@@ -19,10 +19,10 @@
 
 
 
-//#include "/home/llamberti/work/gap_sdk/libs/frame_streamer/include/tools/frame_streamer.h"
-//#include "/home/llamberti/work/gap_sdk/libs/frame_streamer/frame_streamer/frame_streamer.c"
-#include "/home/bomps/Scrivania/gap_8/gap_sdk/frame_streamer/include/tools/frame_streamer.h"
-#include "/home/bomps/Scrivania/gap_8/gap_sdk/frame_streamer/frame_streamer/frame_streamer.c"
+#include "/home/llamberti/work/gap_sdk/libs/frame_streamer/include/tools/frame_streamer.h"
+#include "/home/llamberti/work/gap_sdk/libs/frame_streamer/frame_streamer/frame_streamer.c"
+// #include "/home/bomps/Scrivania/gap_8/gap_sdk/frame_streamer/include/tools/frame_streamer.h"
+// #include "/home/bomps/Scrivania/gap_8/gap_sdk/frame_streamer/frame_streamer/frame_streamer.c"
 #include "SSD_tin_can_bottle.h"
 #include "SSD_tin_can_bottleKernels.h"
 #include "SSD_tin_can_bottleInfo.h"
@@ -77,16 +77,16 @@ AT_HYPERFLASH_FS_EXT_ADDR_TYPE __PREFIX(_L3_Flash) = 0;
   unsigned int size;
 	};
 
-  struct simple_streamer text_streamer;
-  static frame_streamer_t *streamer;// frame streamer
+//   struct simple_streamer text_streamer;
+//   static frame_streamer_t *streamer;// frame streamer
 //devices declarations
-  struct pi_device wifi;
+//   struct pi_device wifi;
   struct pi_device camera;
   struct pi_device cluster_dev;
   struct pi_device HyperRam;
 //signal definitions for callbacks
   static pi_task_t cam_task;
-  static pi_task_t streamer_task;
+//   static pi_task_t streamer_task;
   static pi_task_t detection_task;
 L2_MEM struct pi_cluster_task task[1];
   
@@ -114,53 +114,53 @@ static void main_handler();
 
 
 
-static void init_wifi() {
-	//starting the wifi the wifi value is defined at the beginning of the document and is a global variable
-	int32_t errors = 0;
-	struct pi_nina_w10_conf nina_conf;
+// static void init_wifi() {
+// 	//starting the wifi the wifi value is defined at the beginning of the document and is a global variable
+// 	int32_t errors = 0;
+// 	struct pi_nina_w10_conf nina_conf;
 
-	pi_nina_w10_conf_init(&nina_conf);
+// 	pi_nina_w10_conf_init(&nina_conf);
 
-	nina_conf.ssid = "";
-	nina_conf.passwd = "";
-	nina_conf.ip_addr = "0.0.0.0";
-	nina_conf.port = 5555;
+// 	nina_conf.ssid = "";
+// 	nina_conf.passwd = "";
+// 	nina_conf.ip_addr = "0.0.0.0";
+// 	nina_conf.port = 5555;
 
-	pi_open_from_conf(&wifi, &nina_conf);
+// 	pi_open_from_conf(&wifi, &nina_conf);
 
-	errors = pi_transport_open(&wifi);
+// 	errors = pi_transport_open(&wifi);
 
-#ifdef VERBOSE	
-	PRINTF("NINA WiFi init:\t\t\t\t%s\n", errors?"Failed":"Ok");
-#endif	
+// #ifdef VERBOSE	
+// 	PRINTF("NINA WiFi init:\t\t\t\t%s\n", errors?"Failed":"Ok");
+// #endif	
 
-	if(errors) pmsis_exit(errors);
-}
+// 	if(errors) pmsis_exit(errors);
+// }
 
-static void init_streamer() {
-	//frame streamer init
-	struct frame_streamer_conf streamer_conf;
+// static void init_streamer() {
+// 	//frame streamer init
+// 	struct frame_streamer_conf streamer_conf;
 
-	frame_streamer_conf_init(&streamer_conf);
+// 	frame_streamer_conf_init(&streamer_conf);
 
-	streamer_conf.transport = &wifi;
-	streamer_conf.format = FRAME_STREAMER_FORMAT_JPEG;
-	streamer_conf.width = AT_INPUT_WIDTH_SSD;
-	streamer_conf.height = AT_INPUT_HEIGHT_SSD;
-	streamer_conf.depth = 1;
-	streamer_conf.name = "image_Stream";
+// 	streamer_conf.transport = &wifi;
+// 	streamer_conf.format = FRAME_STREAMER_FORMAT_JPEG;
+// 	streamer_conf.width = AT_INPUT_WIDTH_SSD;
+// 	streamer_conf.height = AT_INPUT_HEIGHT_SSD;
+// 	streamer_conf.depth = 1;
+// 	streamer_conf.name = "image_Stream";
 
-	streamer = frame_streamer_open(&streamer_conf);
+// 	streamer = frame_streamer_open(&streamer_conf);
 
-	pi_buffer_init(&buffer, PI_BUFFER_TYPE_L2, Input_1);
-	pi_buffer_set_format(&buffer, AT_INPUT_WIDTH_SSD, AT_INPUT_HEIGHT_SSD, 1, PI_BUFFER_FORMAT_GRAY);
+// 	pi_buffer_init(&buffer, PI_BUFFER_TYPE_L2, Input_1);
+// 	pi_buffer_set_format(&buffer, AT_INPUT_WIDTH_SSD, AT_INPUT_HEIGHT_SSD, 1, PI_BUFFER_FORMAT_GRAY);
 
-#ifdef VERBOSE	
-	PRINTF("Streamer init:\t\t\t\t%s\n", streamer?"Ok":"Failed");
-#endif	
+// #ifdef VERBOSE	
+// 	PRINTF("Streamer init:\t\t\t\t%s\n", streamer?"Ok":"Failed");
+// #endif	
 
-	if(streamer == NULL) pmsis_exit(-1);
-}
+// 	if(streamer == NULL) pmsis_exit(-1);
+// }
 
 #ifndef FROM_JTAG 
 static int open_camera_himax(struct pi_device *device)
@@ -207,18 +207,19 @@ gap_cl_resethwtimer();
   __PREFIX(CNN)(l3_buff,out_boxes,out_classes, out_scores); //(signed short*)(outputs+2),outputs+82,outputs+92);
 
 }
-static void send_text(){
-	/* simple function for sending unformatted text over data       */
-    pi_transport_send_header(&wifi, &(text_streamer.header), text_streamer.channel, text_streamer.size);
-	pi_transport_send(&wifi,outputs,text_streamer.size);
-	pi_task_push(pi_task_callback(&cam_task, camera_handler, NULL));	
-	//provare a srotolare
-}
+// static void send_text(){
+// 	/* simple function for sending unformatted text over data       */
+//     pi_transport_send_header(&wifi, &(text_streamer.header), text_streamer.channel, text_streamer.size);
+// 	pi_transport_send(&wifi,outputs,text_streamer.size);
+// 	pi_task_push(pi_task_callback(&cam_task, camera_handler, NULL));	
+// 	//provare a srotolare
+// }
 
-static void init_simple_streamer(){
-	text_streamer.channel=pi_transport_connect(&wifi, NULL, NULL);
-	text_streamer.size=TEXT_SIZE;
-}
+// static void init_simple_streamer(){
+// 	text_streamer.channel=pi_transport_connect(&wifi, NULL, NULL);
+// 	text_streamer.size=TEXT_SIZE;
+// }
+
 static void detection_handler(){
 	  #ifndef FROM_JTAG
 	  pi_camera_control(&camera, PI_CAMERA_CMD_STOP, 0);
@@ -340,10 +341,11 @@ static void detection_handler(){
 	  
 	  
 	  // returning value to uint8 format for(int i=0; i<CAMERA_SIZE ; i++){Input_1[i] = Input_2[i]+128; }
-	  frame_streamer_send(streamer, &buffer);
-	  pi_task_push(pi_task_callback(&streamer_task, send_text, NULL));
+	//   frame_streamer_send(streamer, &buffer);
+	//   pi_task_push(pi_task_callback(&streamer_task, send_text, NULL));
 	  //try putting waits to disaccoppiare decouple
 	  
+		pi_task_push(pi_task_callback(&cam_task, camera_handler, NULL));	
 
 
 
@@ -446,15 +448,15 @@ int start()
 
 	
 
-	init_wifi(); 
-	#ifdef VERBOSE
-		PRINTF("OPENED_WIFI \n");
-	#endif
-	init_streamer();
-	#ifdef VERBOSE
-		PRINTF("OPENED_STREAMER_IMAGES\n");
-	#endif
-	init_simple_streamer();
+	// init_wifi(); 
+	// #ifdef VERBOSE
+	// 	PRINTF("OPENED_WIFI \n");
+	// #endif
+	// init_streamer();
+	// #ifdef VERBOSE
+	// 	PRINTF("OPENED_STREAMER_IMAGES\n");
+	// #endif
+	// init_simple_streamer();
 	#ifdef VERBOSE
 		PRINTF("OPENED_STREAMER_TEXT\n");
 		printf("starting camera capture\n");
