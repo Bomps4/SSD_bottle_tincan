@@ -37,6 +37,9 @@ APP_CFLAGS += -I. -I$(MODEL_COMMON_INC) -I$(TILER_EMU_INC) -I$(TILER_INC) $(CNN_
 APP_CFLAGS += -IBUILD_MODEL_SSD 
 APP_LDFLAGS += -lgaplib
 
+# extra lorenzo
+# APP_SRCS += src/himax_utils.c  
+# APP_CFLAGS += -Iinc 
 
 PMSIS_OS=pulpos
 
@@ -72,7 +75,7 @@ else #GAP8
 	ifeq '$(TARGET_CHIP)' 'GAP8_V3'
 	FREQ_CL?=175
 	else
-		FREQ_CL?=160
+		FREQ_CL?=130
 	endif
 	FREQ_FC?=250
 endif
@@ -91,8 +94,6 @@ endif
 MODEL_TENSORS = BUILD_MODEL_SSD/SSD_tin_can_bottle_L3_Flash_Const.dat
 READFS_FILES=$(abspath $(MODEL_TENSORS))
 PLPBRIDGE_FLAGS += -f
-
-
 
 BUILD_MODEL_SSD/ssdlite_ocrKernels.c:
 	make -f ssd.mk model CLUSTER_STACK_SIZE=$(CLUSTER_STACK_SIZE) CLUSTER_SLAVE_STACK_SIZE=$(CLUSTER_SLAVE_STACK_SIZE) 

@@ -37,6 +37,22 @@
 #include "bsp/ram/hyperram.h"
 #include "gaplib/ImgIO.h"
 #include "stdio.h"
+// Himax
+// #include "himax_utils.h"
+
+// Himax params
+#define         HIMAX_GRP_PARAM_HOLD      0x0104
+// Sensor exposure gain control
+#define         HIMAX_INTEGRATION_H       0x0202
+#define         HIMAX_INTEGRATION_L       0x0203
+#define         HIMAX_ANAprintf_GAIN      0x0205
+#define         HIMAX_DIGITAL_GAIN_H      0x020E
+#define         HIMAX_DIGITAL_GAIN_L      0x020F
+// exposure
+#define         HIMAX_AE_CTRL             0x2100
+
+// #define VERBOSE 1
+// #define PERFORMANCE 1
 
 #define __XSTR(__s) __STR(__s)
 #define __STR(__s) #__s
@@ -163,8 +179,9 @@ static void init_streamer() {
 }
 
 #ifndef FROM_JTAG 
-static int open_camera_himax(struct pi_device *device)
-{ 
+static int open_camera_himax(struct pi_device *device) {
+	int32_t errors = 0;
+	uint8_t set_value;
 	struct pi_himax_conf cam_conf;
 
 	pi_himax_conf_init(&cam_conf);
@@ -172,24 +189,33 @@ static int open_camera_himax(struct pi_device *device)
 	cam_conf.format = PI_CAMERA_QVGA;
 
 	pi_open_from_conf(device, &cam_conf);
-	if (pi_camera_open(device))return -1;
 
-	uint8_t reg_value, set_value;
+	errors = pi_camera_open(device);
 
+	pi_time_wait_us(1000000);
 
+	#ifdef VERBOSE
+	printf("HiMax camera init:\t\t\t%s\n", errors?"Failed":"Ok");
+	#endif
+	if(errors) pmsis_exit(errors);
 
+	// set registers
+	set_value = 0x01;
+	pi_camera_reg_set(device, HIMAX_GRP_PARAM_HOLD, &set_value);
+	pi_time_wait_us(100000);
 
-	set_value=0;
+	set_value = 3;
+	pi_camera_reg_set(device, IMG_ORIENTATION, &set_value); //IMG_ORIENTATION=0101
+	set_value = 0x03;
 
-	pi_camera_reg_set(device, IMG_ORIENTATION, &set_value);
-	pi_camera_reg_get(device, IMG_ORIENTATION, &reg_value);
-
-
+	set_value = 0x0;
+	pi_camera_reg_set(device, HIMAX_GRP_PARAM_HOLD, &set_value); 
+	pi_time_wait_us(100000);
 	pi_camera_control(device, PI_CAMERA_CMD_AEG_INIT, 0);
-
-	return 0;
+	return errors;
 }
 #endif
+
 int8_t* converter_To_int8(uint8_t* input){
 	int8_t* Input_2=input;
 	for(int i=0; i<AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD ; ++i){Input_2[i] = Input_1[i]-128; }
@@ -217,20 +243,15 @@ static void init_simple_streamer(){
 	text_streamer.channel=pi_transport_connect(&wifi, NULL, NULL);
 	text_streamer.size=TEXT_SIZE;
 }
+
 static void detection_handler(){
 	  pi_camera_control(&camera, PI_CAMERA_CMD_STOP, 0);
 	  
-	 
 	  memset(task, 0, sizeof(struct pi_cluster_task));
 	  task->entry = &RunNetwork;
 	  task->stack_size = STACK_SIZE;
 	  task->slave_stack_size = SLAVE_STACK_SIZE;
 	  task->arg = NULL;
-
-	 
-
-	  
-
 	  
 	#ifdef VERBOSE	  
 		PRINTF("Graph constructor was OK\n");
@@ -294,8 +315,6 @@ static void detection_handler(){
 		printf("\n");
 		printf("%45s: Cycles: %10d, Operations: %10d, Operations/Cycle: %f\n", "Total", TotalCycles, TotalOper, ((float) TotalOper)/ TotalCycles);
 		printf("\n");
-	  	
-	  	
 	  #endif
 	  LED_OFF;
 	  
@@ -307,7 +326,6 @@ static void detection_handler(){
 		  out_boxes[i*4 +2] = (short int)(FIX2FP(((int)out_boxes[2+i*4])*SSD_tin_can_bottle_Output_1_OUT_QSCALE,SSD_tin_can_bottle_Output_1_OUT_QNORM)*240);
 
 		  out_boxes[i*4 +3] = (short int)(FIX2FP(((int)out_boxes[3+i*4])*SSD_tin_can_bottle_Output_1_OUT_QSCALE,SSD_tin_can_bottle_Output_1_OUT_QNORM)*320);
-			
 
 	} 
 	
@@ -321,11 +339,6 @@ static void detection_handler(){
 	
 	  // returning value to uint8 format for(int i=0; i<CAMERA_SIZE ; i++){Input_1[i] = Input_2[i]+128; }
 	  frame_streamer_send_async(streamer, &buffer,pi_task_callback(&streamer_task, send_text, NULL));
-	  
-	  
-
-
-
 
 }
 
@@ -348,8 +361,99 @@ static void camera_handler() {
 
 
 
+// /* --------------- HIMAX UTILS --------------- */
+
+// /**/
+// static int32_t pi_camera_reg_get16(struct pi_device *camera, uint32_t reg_addr_l, uint32_t reg_addr_h, uint16_t *value)
+// {
+//   uint8_t *v = (uint8_t *) value;
+//   pi_camera_reg_get(camera, reg_addr_l, v);
+//   return pi_camera_reg_get(camera, reg_addr_h, v+1);
+// }
+
+// static int32_t pi_camera_reg_set16(struct pi_device *camera, uint32_t reg_addr_l, uint32_t reg_addr_h, uint16_t *value)
+// {
+//   uint8_t *v = (uint8_t *) value;
+//   pi_camera_reg_set(camera, reg_addr_l, v);
+//   return pi_camera_reg_set(camera, reg_addr_h, v+1);
+// }
+
+// static void _himax_enable_ae(struct pi_device *camera, uint8_t value)
+// {
+//   if(value) value=1;
+//   pi_camera_reg_set(camera, HIMAX_AE_CTRL, &value);
+// }
+
+// void write_himax_exp_params(struct pi_device *camera, uint16_t integration_value16, uint16_t d_gain_value16, uint8_t a_gain_value){
+//     /**
+//      * digital gain 
+//      *    1x -> DIGITAL_GAIN_H    0x01  
+//      *          DIGITAL_GAIN__L   0x00
+//      * analog gain
+//      *    1x -> 0x00
+//      *    2x -> 0x10
+//      *    4x -> 0x20
+//      *    8x -> 0x30    
+//     */
+
+// #ifdef VERBOSE
+//     printf("Setting:\n");
+//     printf("\tintegration time: 0x%04x\n", integration_value16);
+//     printf("\tdigital gain:     0x%04x\n", d_gain_value16);
+//     printf("\tanalog gain:   0x%02x\n", a_gain_value);
+// #endif
+//     // start commit 
+//     pi_camera_reg_set(camera, HIMAX_GRP_PARAM_HOLD, 0x1);
+//     // pi_time_wait_us(100000);
+
+//     // disable Auto-Exposure
+//     _himax_enable_ae(camera, 0);
+//     // set registers
+//     pi_camera_reg_set16(camera, HIMAX_INTEGRATION_L, HIMAX_INTEGRATION_H, &integration_value16);
+//     pi_camera_reg_set16(camera, HIMAX_DIGITAL_GAIN_L, HIMAX_DIGITAL_GAIN_H, &d_gain_value16);
+//     pi_camera_reg_set(camera,   HIMAX_ANAprintf_GAIN, &a_gain_value);
+//     // end commit
+//     pi_camera_reg_set(camera, HIMAX_GRP_PARAM_HOLD, 0x0);
+//     // pi_time_wait_us(100000);
+// }
+
+// /* --------------- END: HIMAX UTILS --------------- */
 
 
+/* --------------- SET HIMAX MANUAL EXPOSURE --------------- */
+
+// #define BUFF_SIZE CAMERA_SIZE
+// static int size;
+// #define NUM_CALIBRATION_FRAMES 10
+// unsigned int exposure_calibration_size = NUM_CALIBRATION_FRAMES;
+// void manual_exposure_calibration(){
+
+// 	size = CAMERA_SIZE;
+//   	init_exposure_calibration(exposure_calibration_size);
+// 	printf("HiMax Exposure init\n");
+// 	u_int8_t i=0;
+// 	while(i<exposure_calibration_size){
+// 		// #ifdef VERBOSE
+// 		printf("%d\n",i);
+// 		// #endif
+// 		// Start camera acquisition
+// 		pi_camera_control(&camera, PI_CAMERA_CMD_START, 0);
+// 		pi_camera_capture(&camera, Input_1, BUFF_SIZE);
+// 		pi_camera_control(&camera, PI_CAMERA_CMD_STOP, 0);
+
+// 		himax_update_exposure(&camera);
+// 		i++;
+// 	}
+// }
+
+// void manual_exposure(){
+// 	// IMAV PARAMETERS : curtains closed
+// 	uint16_t integration_value16 = 0x00ac;
+// 	uint16_t d_gain_value16 = 0x0298;
+// 	uint8_t a_gain_value = 0x30;
+// 	write_himax_exp_params(&camera, integration_value16, d_gain_value16, a_gain_value);
+// }	
+/* --------------- END: SET HIMAX MANUAL EXPOSURE --------------- */
 
 
 int start()
@@ -361,21 +465,25 @@ int start()
 	pi_freq_set(PI_FREQ_DOMAIN_CL, FREQ_CL*1000*1000);
 	pi_time_wait_us(100000);
  
- 
-  
 	pi_gpio_pin_configure(&gpio_device, 2, PI_GPIO_OUTPUT); 
 
+	// ADD COMMENT HERE
 	outputs[0]=-127;
 	outputs[1]=13;
-	#ifndef FROM_JTAG
+#ifndef FROM_JTAG
 	int err = open_camera_himax(&camera);
 	if (err) {
 	  PRINTF("Failed to open camera\n");
 	  pmsis_exit(-2);
 	}
-    
-	#endif
-	
+#endif
+	// Manual Calibration
+	// manual_exposure_calibration();
+	// // Get manually calibrated parameters
+	// get_himax_exp_params(&camera);
+	// write manually registers to set Exposure
+	// manual_exposure();
+
 	struct pi_hyperram_conf hyper_conf;
 	pi_hyperram_conf_init(&hyper_conf);
 	pi_open_from_conf(&HyperRam, &hyper_conf);
@@ -391,9 +499,6 @@ int start()
 		pmsis_exit(-4);
 	}
 
-
-
-
 	/*-----------------------OPEN THE CLUSTER--------------------------*/
 	  
 	struct pi_cluster_conf conf;
@@ -401,8 +506,6 @@ int start()
 	pi_open_from_conf(&cluster_dev, (void *)&conf);
 	int error=pi_cluster_open(&cluster_dev);
 
-
-	
 	if(error){ 
 	PRINTF("CLUSTER ERROR");
 	pmsis_exit(error);
@@ -415,10 +518,6 @@ int start()
 	printf("Graph constructor exited with an error \n %d",error_cnn);
 	pmsis_exit(-1);
 	}
-
-
-
-	
 
 	init_wifi(); 
 	#ifdef VERBOSE
