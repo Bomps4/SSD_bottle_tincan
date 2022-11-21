@@ -175,7 +175,7 @@ class ImgThread(threading.Thread):
                     else:
                        boxes=[]
                        scores=[]
-                    self._callback(imgdata_complete, number_of_images, boxes,scores)
+                    self._callback(imgdata_complete, number_of_images, boxes, scores)
                     
                 except gi.repository.GLib.Error:
                     print ("image not shown")

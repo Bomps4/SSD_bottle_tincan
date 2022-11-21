@@ -215,6 +215,7 @@ static int open_camera_himax(struct pi_device *device) {
 	return errors;
 }
 #endif
+
 int8_t* converter_To_int8(uint8_t* input){
 	int8_t* Input_2=input;
 	for(int i=0; i<AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD ; ++i){Input_2[i] = Input_1[i]-128; }
@@ -242,10 +243,10 @@ static void init_simple_streamer(){
 	text_streamer.channel=pi_transport_connect(&wifi, NULL, NULL);
 	text_streamer.size=TEXT_SIZE;
 }
+
 static void detection_handler(){
 	  pi_camera_control(&camera, PI_CAMERA_CMD_STOP, 0);
 	  
-	 
 	  memset(task, 0, sizeof(struct pi_cluster_task));
 	  task->entry = &RunNetwork;
 	  task->stack_size = STACK_SIZE;
@@ -314,8 +315,6 @@ static void detection_handler(){
 		printf("\n");
 		printf("%45s: Cycles: %10d, Operations: %10d, Operations/Cycle: %f\n", "Total", TotalCycles, TotalOper, ((float) TotalOper)/ TotalCycles);
 		printf("\n");
-	  	
-	  	
 	  #endif
 	  LED_OFF;
 	  
@@ -327,7 +326,6 @@ static void detection_handler(){
 		  out_boxes[i*4 +2] = (short int)(FIX2FP(((int)out_boxes[2+i*4])*SSD_tin_can_bottle_Output_1_OUT_QSCALE,SSD_tin_can_bottle_Output_1_OUT_QNORM)*240);
 
 		  out_boxes[i*4 +3] = (short int)(FIX2FP(((int)out_boxes[3+i*4])*SSD_tin_can_bottle_Output_1_OUT_QSCALE,SSD_tin_can_bottle_Output_1_OUT_QNORM)*320);
-			
 
 	} 
 	
@@ -341,11 +339,6 @@ static void detection_handler(){
 	
 	  // returning value to uint8 format for(int i=0; i<CAMERA_SIZE ; i++){Input_1[i] = Input_2[i]+128; }
 	  frame_streamer_send_async(streamer, &buffer,pi_task_callback(&streamer_task, send_text, NULL));
-	  
-	  
-
-
-
 
 }
 
