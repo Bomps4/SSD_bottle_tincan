@@ -349,7 +349,7 @@ def main():
     save_bboxes=args.save_bboxes
     time0 = datetime.now()
 
-    fw = FrameViewer(deck_ip, deck_port, time0, save_images, save_images_path,True)
+    fw = FrameViewer(deck_ip, deck_port, time0, save_images, save_images_path,save_bboxes)
 
     fw.show_all()
     Gtk.main()
