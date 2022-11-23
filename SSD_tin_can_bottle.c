@@ -19,10 +19,10 @@
 
 
 
-#include "/home/llamberti/work/gap_sdk/libs/frame_streamer/include/tools/frame_streamer.h"
-#include "/home/llamberti/work/gap_sdk/libs/frame_streamer/frame_streamer/frame_streamer.c"
-// #include "/home/bomps/Scrivania/gap_8/gap_sdk/frame_streamer/include/tools/frame_streamer.h"
-// #include "/home/bomps/Scrivania/gap_8/gap_sdk/frame_streamer/frame_streamer/frame_streamer.c"
+//#include "/home/llamberti/work/gap_sdk/libs/frame_streamer/include/tools/frame_streamer.h"
+//#include "/home/llamberti/work/gap_sdk/libs/frame_streamer/frame_streamer/frame_streamer.c"
+#include "/home/bomps/Scrivania/gap_8/gap_sdk/frame_streamer/include/tools/frame_streamer.h"
+#include "/home/bomps/Scrivania/gap_8/gap_sdk/frame_streamer/frame_streamer/frame_streamer.c"
 #include "SSD_tin_can_bottle.h"
 #include "SSD_tin_can_bottleKernels.h"
 #include "SSD_tin_can_bottleInfo.h"
@@ -38,7 +38,7 @@
 #include "gaplib/ImgIO.h"
 #include "stdio.h"
 // Himax
-// #include "himax_utils.h"
+#include "himax_utils.h"
 
 // Himax params
 #define         HIMAX_GRP_PARAM_HOLD      0x0104
@@ -51,8 +51,7 @@
 // exposure
 #define         HIMAX_AE_CTRL             0x2100
 
-// #define VERBOSE 1
-// #define PERFORMANCE 1
+
 
 #define __XSTR(__s) __STR(__s)
 #define __STR(__s) #__s
@@ -71,12 +70,14 @@
 #define CAMERA_HEIGHT   (244)
 #define NUMBER_OF_DETECTION (10)
 #define BYTES_DETECTION (10)
-#define EXTRA_RECOGNITION (2)
+#define EXTRA_RECOGNITION (4) //bytes used to separete between detections and image
 #define TEXT_SIZE 		(NUMBER_OF_DETECTION*BYTES_DETECTION +EXTRA_RECOGNITION)
 #define CAMERA_COLORS   (1)
 #define CAMERA_SIZE     (CAMERA_WIDTH*CAMERA_HEIGHT*CAMERA_COLORS)
 #define SCORE_THR       0
+#define BUFF_SIZE CAMERA_SIZE
 
+#define NUM_CALIBRATION_FRAMES 10
 #define LED_ON pi_gpio_pin_write(&gpio_device, 2, 1)
 
 #define LED_OFF pi_gpio_pin_write(&gpio_device, 2, 0)
@@ -84,51 +85,42 @@
 AT_HYPERFLASH_FS_EXT_ADDR_TYPE __PREFIX(_L3_Flash) = 0;
 
 
-  L2_MEM static struct pi_device gpio_device;
+L2_MEM static struct pi_device gpio_device;
 
 //streamers for passing text and images
-  struct simple_streamer{
-  int channel;
-  struct pi_transport_header header;
-  unsigned int size;
-	};
+struct simple_streamer{
+int channel;
+struct pi_transport_header header;
+unsigned int size;};
 
-  struct simple_streamer text_streamer;
-  static frame_streamer_t *streamer;// frame streamer
+struct simple_streamer text_streamer;
+static frame_streamer_t *streamer;// images streamer
+
 //devices declarations
-  struct pi_device wifi;
-  struct pi_device camera;
-  struct pi_device cluster_dev;
-  struct pi_device HyperRam;
+struct pi_device wifi;
+struct pi_device camera;
+struct pi_device cluster_dev;
+struct pi_device HyperRam;
+
 //signal definitions for callbacks
-  static pi_task_t cam_task;
-  static pi_task_t streamer_task;
-  static pi_task_t detection_task;
+static pi_task_t cam_task;
+static pi_task_t streamer_task;
+static pi_task_t detection_task;
 L2_MEM struct pi_cluster_task task[1];
 
-  
-
-
-
 //buffers
-  static pi_buffer_t buffer;//buffer for image transfer
-  static uint32_t l3_buff;//l3 memory pointer 
-  L2_MEM static uint8_t Input_1[CAMERA_SIZE];//image storage
-  L2_MEM signed char outputs[TEXT_SIZE];// neural network output storage for sending throught wifi 
-  L2_MEM short int out_boxes[NUMBER_OF_DETECTION*4]; //each bounding box is composed of 4 coordinates
-  L2_MEM signed char out_scores[NUMBER_OF_DETECTION]; 
-  L2_MEM signed char out_classes[NUMBER_OF_DETECTION];
-
-  
-
+static pi_buffer_t buffer;//buffer for image transfer
+static uint32_t l3_buff;//l3 memory pointer 
+L2_MEM static uint8_t Input_1[CAMERA_SIZE];//image storage
+L2_MEM signed char outputs[TEXT_SIZE];// neural network output storage for sending throught wifi 
+L2_MEM short int out_boxes[NUMBER_OF_DETECTION*4]; //each bounding box is composed of 4 coordinates
+L2_MEM signed char out_scores[NUMBER_OF_DETECTION]; 
+L2_MEM signed char out_classes[NUMBER_OF_DETECTION];
+L2_MEM static int size;
 //callback function declarations
 static void detection_handler();
 static void camera_handler();
 static void main_handler();
-
-
-
-
 
 static void init_wifi() {
 	//starting the wifi the wifi value is defined at the beginning of the document and is a global variable
@@ -174,137 +166,146 @@ static void init_streamer() {
 #ifdef VERBOSE	
 	PRINTF("Streamer init:\t\t\t\t%s\n", streamer?"Ok":"Failed");
 #endif	
-
 	if(streamer == NULL) pmsis_exit(-1);
 }
 
 #ifndef FROM_JTAG 
-static int open_camera_himax(struct pi_device *device) {
-	int32_t errors = 0;
-	uint8_t set_value;
-	struct pi_himax_conf cam_conf;
+	static int open_camera_himax(struct pi_device *device) {
+		int32_t errors = 0;
+		uint8_t set_value;
+		struct pi_himax_conf cam_conf;
 
-	pi_himax_conf_init(&cam_conf);
+		pi_himax_conf_init(&cam_conf);
 
-	cam_conf.format = PI_CAMERA_QVGA;
+		cam_conf.format = PI_CAMERA_QVGA;
 
-	pi_open_from_conf(device, &cam_conf);
+		pi_open_from_conf(device, &cam_conf);
 
-	errors = pi_camera_open(device);
+		errors = pi_camera_open(device);
 
-	pi_time_wait_us(1000000);
+		pi_time_wait_us(1000000);
 
-	#ifdef VERBOSE
-	printf("HiMax camera init:\t\t\t%s\n", errors?"Failed":"Ok");
-	#endif
-	if(errors) pmsis_exit(errors);
+		#ifdef VERBOSE
+		printf("HiMax camera init:\t\t\t%s\n", errors?"Failed":"Ok");
+		#endif
+		if(errors) pmsis_exit(errors);
 
-	// set registers
-	set_value = 0x01;
-	pi_camera_reg_set(device, HIMAX_GRP_PARAM_HOLD, &set_value);
-	pi_time_wait_us(100000);
+		// set registers
+		set_value = 0x01;
+		pi_camera_reg_set(device, HIMAX_GRP_PARAM_HOLD, &set_value);
+		pi_time_wait_us(100000);
 
-	set_value = 3;
-	pi_camera_reg_set(device, IMG_ORIENTATION, &set_value); //IMG_ORIENTATION=0101
-	set_value = 0x03;
+		set_value = 3;
+		pi_camera_reg_set(device, IMG_ORIENTATION, &set_value); //IMG_ORIENTATION=0101
+		set_value = 0x03;
 
-	set_value = 0x0;
-	pi_camera_reg_set(device, HIMAX_GRP_PARAM_HOLD, &set_value); 
-	pi_time_wait_us(100000);
-	pi_camera_control(device, PI_CAMERA_CMD_AEG_INIT, 0);
-	return errors;
-}
+		set_value = 0x0;
+		pi_camera_reg_set(device, HIMAX_GRP_PARAM_HOLD, &set_value); 
+		pi_time_wait_us(100000);
+		pi_camera_control(device, PI_CAMERA_CMD_AEG_INIT, 0);
+		return errors;
+	}
 #endif
 
+//utility function for data type conversions, resizing and rotating images
 int8_t* converter_To_int8(uint8_t* input){
 	int8_t* Input_2=input;
 	for(int i=0; i<AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD ; ++i){Input_2[i] = Input_1[i]-128; }
 	return Input_2;
 }
 
+void image_cropping(uint8_t* Input_1){
+	//cropping camera image to height == AT_INPUT_HEIGHT_SSD and width == AT_INPUT_WIDTH_SSD
+	int idx=0;	
+	for(int i =0;i<CAMERA_HEIGHT;i++){
+  		for(int j=0;j<CAMERA_WIDTH;j++){
+    		if (i<AT_INPUT_HEIGHT_SSD && j<AT_INPUT_WIDTH_SSD){
+      			Input_1[idx] = Input_1[i*CAMERA_WIDTH+j];
+    			idx+=1;
+    		}
+		}
+	}
+}
+
+void image_flipping(uint8_t* Input_1){
+	//flips image horizontally and vertically
+	for(int i=AT_INPUT_WIDTH_SSD;i>0;--i){
+		for (int j=0;j<AT_INPUT_HEIGHT_SSD/2;++j){
+			unsigned char pixel=Input_1[i+j*AT_INPUT_WIDTH_SSD];
+			Input_1[i+j*AT_INPUT_WIDTH_SSD]=Input_1[-i+(AT_INPUT_HEIGHT_SSD-j)*AT_INPUT_WIDTH_SSD]; //exchanging elements on 
+			Input_1[-i+(AT_INPUT_HEIGHT_SSD-j)*AT_INPUT_WIDTH_SSD]=pixel;
+		}
+	}
+}
+
 static void RunNetwork()
 { 
-
-#ifdef PERFORMANCE
-gap_cl_starttimer();
-gap_cl_resethwtimer();
-#endif
-
-  __PREFIX(CNN)(l3_buff,out_boxes,out_classes, out_scores); //(signed short*)(outputs+2),outputs+82,outputs+92);
-
+	#ifdef PERFORMANCE
+	gap_cl_starttimer();
+	gap_cl_resethwtimer();
+	#endif
+	__PREFIX(CNN)(l3_buff,out_boxes,out_classes, out_scores); //(signed short*)(outputs+2),outputs+82,outputs+92);
 }
+
 static void send_text(){
 	/* simple function for sending unformatted text over data       */
-    pi_transport_send_header(&wifi, &(text_streamer.header), text_streamer.channel, text_streamer.size);
-	pi_transport_send_async(&wifi,outputs,text_streamer.size,pi_task_callback(&cam_task, camera_handler, NULL));	
+	pi_transport_send_header(&wifi, &(text_streamer.header), text_streamer.channel, text_streamer.size);//sending header 
+	pi_transport_send_async(&wifi,outputs,text_streamer.size,pi_task_callback(&cam_task, camera_handler, NULL));//transmitting data
 }
 
 static void init_simple_streamer(){
+	//simple initialization of simple streamer class
 	text_streamer.channel=pi_transport_connect(&wifi, NULL, NULL);
 	text_streamer.size=TEXT_SIZE;
 }
 
 static void detection_handler(){
-	  pi_camera_control(&camera, PI_CAMERA_CMD_STOP, 0);
-	  
-	  memset(task, 0, sizeof(struct pi_cluster_task));
-	  task->entry = &RunNetwork;
-	  task->stack_size = STACK_SIZE;
-	  task->slave_stack_size = SLAVE_STACK_SIZE;
-	  task->arg = NULL;
+	pi_camera_control(&camera, PI_CAMERA_CMD_STOP, 0);//stopping the camera
+
+	memset(task, 0, sizeof(struct pi_cluster_task));//de initializing pi_cluster_task
+	task->entry = &RunNetwork;//object detector function reference
+	task->stack_size = STACK_SIZE;//master stack size in cluster
+	task->slave_stack_size = SLAVE_STACK_SIZE;//slaves stack size in cluster
+	task->arg = NULL;
 	  
 	#ifdef VERBOSE	  
 		PRINTF("Graph constructor was OK\n");
 	#endif 
 	#ifndef FROM_JTAG
 	/*cropping image to AT_INPUT_HEIGHT_SSD and AT_INPUT_WIDTH_SSD dimensions*/
-	int idx=0;
-	
-		    for(int i =0;i<CAMERA_HEIGHT;i++){
-		      for(int j=0;j<CAMERA_WIDTH;j++){
-		        if (i<AT_INPUT_HEIGHT_SSD && j<AT_INPUT_WIDTH_SSD){
-		          Input_1[idx] = Input_1[i*CAMERA_WIDTH+j];
-		        idx+=1;
-		        }
-		    };}
+	image_cropping(Input_1);
 	
 	/* workaround needed for rotating camera output bug in the current library which doesn't do it autonomously*/
-	for(int i=AT_INPUT_WIDTH_SSD;i>0;--i){
-		for (int j=0;j<AT_INPUT_HEIGHT_SSD/2;++j){
-		
-		unsigned char pixel=Input_1[i+j*AT_INPUT_WIDTH_SSD];
-		Input_1[i+j*AT_INPUT_WIDTH_SSD]=Input_1[-i+(AT_INPUT_HEIGHT_SSD-j)*AT_INPUT_WIDTH_SSD];
-		Input_1[-i+(AT_INPUT_HEIGHT_SSD-j)*AT_INPUT_WIDTH_SSD]=pixel;
-		};}
+	image_flipping(Input_1);
 	#endif
 	#ifdef VERBOSE	
 		printf("image rotated\n");
 	#endif 
 	
-	  
+	 
 	  
 	//depending on the kind of quantization used the input may need to be rescaled to  be in the int8 format
 	//int8_t* Input_2 = converter_To_int8( Input_1 );
 	  
 	 
 	
-	  pi_ram_write(&HyperRam, l3_buff , Input_1, (uint32_t)AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD);
+	pi_ram_write(&HyperRam, l3_buff , Input_1, (uint32_t)AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD);
 
-	  pi_ram_write(&HyperRam, l3_buff+AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD , Input_1, (uint32_t) AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD);
+	pi_ram_write(&HyperRam, l3_buff+AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD , Input_1, (uint32_t) AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD);
 
-	  pi_ram_write(&HyperRam, l3_buff+2*AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD , Input_1, (uint32_t)AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD);
+	pi_ram_write(&HyperRam, l3_buff+2*AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD , Input_1, (uint32_t)AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD);
 	#ifdef VERBOSE
 		printf("ram written \n");
 	#endif
 
 	
-	  uint32_t time_begin=rt_time_get_us(); 
-	  LED_ON;
-	  uint32_t error_cluster = pi_cluster_send_task_to_cl(&cluster_dev, task);
-	  #ifdef VERBOSE
-		printf("sent task to clusted \t\t\t\t%s\n", error_cluster?"Ok":"Failed");
-	  #endif
-	 #ifdef PERFORMANCE
+	uint32_t time_begin=rt_time_get_us(); 
+	LED_ON;
+	uint32_t error_cluster = pi_cluster_send_task_to_cl(&cluster_dev, task);
+	#ifdef VERBOSE
+		printf("sent task to clusted \t\t\t\t%s\n", error_cluster?"Failed":"Ok");
+	#endif
+	#ifdef PERFORMANCE
 		PRINTF("TOTAL TIME IN MICROSECONDS: %d \n",rt_time_get_us()-time_begin);
 		unsigned int TotalCycles = 0, TotalOper = 0;
 		printf("\n");
@@ -315,51 +316,52 @@ static void detection_handler(){
 		printf("\n");
 		printf("%45s: Cycles: %10d, Operations: %10d, Operations/Cycle: %f\n", "Total", TotalCycles, TotalOper, ((float) TotalOper)/ TotalCycles);
 		printf("\n");
-	  #endif
-	  LED_OFF;
+	#endif
+	LED_OFF;
 	  
-	  for(char i=0;i<NUMBER_OF_DETECTION;i+=1){
-	  	out_boxes[i*4] = (short int)(FIX2FP(((int)out_boxes[i*4])*SSD_tin_can_bottle_Output_1_OUT_QSCALE,SSD_tin_can_bottle_Output_1_OUT_QNORM)*240);
-
-		  out_boxes[i*4+1 ] = (short int)(FIX2FP(((int)out_boxes[1+i*4])*SSD_tin_can_bottle_Output_1_OUT_QSCALE,SSD_tin_can_bottle_Output_1_OUT_QNORM)*320);
-
-		  out_boxes[i*4 +2] = (short int)(FIX2FP(((int)out_boxes[2+i*4])*SSD_tin_can_bottle_Output_1_OUT_QSCALE,SSD_tin_can_bottle_Output_1_OUT_QNORM)*240);
-
-		  out_boxes[i*4 +3] = (short int)(FIX2FP(((int)out_boxes[3+i*4])*SSD_tin_can_bottle_Output_1_OUT_QSCALE,SSD_tin_can_bottle_Output_1_OUT_QNORM)*320);
-
+	for(char i=0;i<NUMBER_OF_DETECTION;i+=1){
+		//converting output boxes to pixel values (heigh 240 pixels,width 320 pixels)
+		out_boxes[i*4] = (short int)(FIX2FP(((int)out_boxes[i*4])*SSD_tin_can_bottle_Output_1_OUT_QSCALE,SSD_tin_can_bottle_Output_1_OUT_QNORM)*AT_INPUT_HEIGHT_SSD);
+		out_boxes[i*4+1 ] = (short int)(FIX2FP(((int)out_boxes[1+i*4])*SSD_tin_can_bottle_Output_1_OUT_QSCALE,SSD_tin_can_bottle_Output_1_OUT_QNORM)*AT_INPUT_WIDTH_SSD);
+		out_boxes[i*4 +2] = (short int)(FIX2FP(((int)out_boxes[2+i*4])*SSD_tin_can_bottle_Output_1_OUT_QSCALE,SSD_tin_can_bottle_Output_1_OUT_QNORM)*AT_INPUT_HEIGHT_SSD);
+		out_boxes[i*4 +3] = (short int)(FIX2FP(((int)out_boxes[3+i*4])*SSD_tin_can_bottle_Output_1_OUT_QSCALE,SSD_tin_can_bottle_Output_1_OUT_QNORM)*AT_INPUT_WIDTH_SSD);
+		#ifdef MAP
+			printf("Draw_boxes(%d,%d,%d,%d)\n",out_boxes[i*4],out_boxes[i*4+1 ],out_boxes[i*4 +2],out_boxes[i*4 +3]);
+			printf("SCORES:%d\n",out_scores[i]);
+			printf("CLASS:%d\n",out_classes[i]);
+		#endif
 	} 
-	
-	  for (char i=0;i<NUMBER_OF_DETECTION*sizeof(short int)*4;++i){
-		outputs[i+2]=((signed char*)out_boxes)[i];
-		}
-	
-	  for (char i=NUMBER_OF_DETECTION*sizeof(short int)*4;i<NUMBER_OF_DETECTION*(sizeof(short int)*4+1);++i)outputs[i+2]=out_scores[i-80];
-	  for (char i=90;i<100;++i)outputs[i+2]=out_classes[i-90];
-		
-	
-	  // returning value to uint8 format for(int i=0; i<CAMERA_SIZE ; i++){Input_1[i] = Input_2[i]+128; }
-	  frame_streamer_send_async(streamer, &buffer,pi_task_callback(&streamer_task, send_text, NULL));
+	#ifdef MAP
+		pmsis_exit(0);
+	#endif	
+
+	for (char i=0;i<NUMBER_OF_DETECTION*sizeof(short int)*4;++i){
+	outputs[i+EXTRA_RECOGNITION]=((signed char*)out_boxes)[i];
+	}
+
+	for (char i=NUMBER_OF_DETECTION*sizeof(short int)*4;i<NUMBER_OF_DETECTION*(sizeof(short int)*4+1);++i)outputs[i+EXTRA_RECOGNITION]=out_scores[i-80];
+	for (char i=90;i<100;++i)outputs[i+EXTRA_RECOGNITION]=out_classes[i-90];
+
+
+	// returning value to uint8 format for(int i=0; i<CAMERA_SIZE ; i++){Input_1[i] = Input_2[i]+128; }
+	frame_streamer_send_async(streamer, &buffer,pi_task_callback(&streamer_task, send_text, NULL));
 
 }
 
 static void camera_handler() {
 	#ifndef FROM_JTAG 
-	pi_camera_control(&camera, PI_CAMERA_CMD_ON, 0);
-	
-	pi_camera_capture_async(&camera,  Input_1, CAMERA_WIDTH*CAMERA_HEIGHT,pi_task_callback(&detection_task, detection_handler, NULL) );
+		
+		pi_camera_capture_async(&camera,  Input_1, CAMERA_WIDTH*CAMERA_HEIGHT,pi_task_callback(&detection_task, detection_handler, NULL) );
 	#ifdef VERBOSE
-	printf("camera finished\n");
+		printf("camera finished\n");
 	#endif
-	pi_camera_control(&camera, PI_CAMERA_CMD_START, 0);
+		pi_camera_control(&camera, PI_CAMERA_CMD_START, 0);
 	#else
-	ReadImageFromFile("/home/bomps/Scrivania/gap_8/conversion_tflite/converted_1_output/bottle_3_29.ppm", AT_INPUT_WIDTH_SSD, AT_INPUT_HEIGHT_SSD, 1, Input_1, AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD*sizeof(char), IMGIO_OUTPUT_CHAR, 0);
+		ReadImageFromFile(IMAGE_NAME, AT_INPUT_WIDTH_SSD, AT_INPUT_HEIGHT_SSD, 1, Input_1, AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD*sizeof(char), IMGIO_OUTPUT_CHAR, 0);
 	
-	pi_task_push(pi_task_callback(&detection_task, detection_handler, NULL));
-	*/
+		pi_task_push(pi_task_callback(&detection_task, detection_handler, NULL));
 	#endif
 }
-
-
 
 // /* --------------- HIMAX UTILS --------------- */
 
@@ -422,37 +424,38 @@ static void camera_handler() {
 
 /* --------------- SET HIMAX MANUAL EXPOSURE --------------- */
 
-// #define BUFF_SIZE CAMERA_SIZE
-// static int size;
-// #define NUM_CALIBRATION_FRAMES 10
-// unsigned int exposure_calibration_size = NUM_CALIBRATION_FRAMES;
-// void manual_exposure_calibration(){
 
-// 	size = CAMERA_SIZE;
-//   	init_exposure_calibration(exposure_calibration_size);
-// 	printf("HiMax Exposure init\n");
-// 	u_int8_t i=0;
-// 	while(i<exposure_calibration_size){
+unsigned int exposure_calibration_size = NUM_CALIBRATION_FRAMES;
+void manual_exposure_calibration(){
+
+	size = CAMERA_SIZE;
+	init_exposure_calibration(exposure_calibration_size);
+	#ifdef VERBOSE
+		printf("HiMax Exposure init\n");
+	#endif
+	uint8_t i=0;
+	while(i<exposure_calibration_size){
 // 		// #ifdef VERBOSE
 // 		printf("%d\n",i);
 // 		// #endif
-// 		// Start camera acquisition
-// 		pi_camera_control(&camera, PI_CAMERA_CMD_START, 0);
-// 		pi_camera_capture(&camera, Input_1, BUFF_SIZE);
-// 		pi_camera_control(&camera, PI_CAMERA_CMD_STOP, 0);
+		//Start camera acquisition
+		
+		pi_camera_control(&camera, PI_CAMERA_CMD_START, 0);
+		pi_camera_capture(&camera, Input_1, BUFF_SIZE); 		
+		pi_camera_control(&camera, PI_CAMERA_CMD_STOP, 0);
+		pi_camera_control(&camera, PI_CAMERA_CMD_ON, 0);
+		himax_update_exposure(&camera);
+ 		i++;
+ 	}
+}
 
-// 		himax_update_exposure(&camera);
-// 		i++;
-// 	}
-// }
-
-// void manual_exposure(){
-// 	// IMAV PARAMETERS : curtains closed
-// 	uint16_t integration_value16 = 0x00ac;
-// 	uint16_t d_gain_value16 = 0x0298;
-// 	uint8_t a_gain_value = 0x30;
-// 	write_himax_exp_params(&camera, integration_value16, d_gain_value16, a_gain_value);
-// }	
+void manual_exposure(){
+	//IMAV PARAMETERS : curtains closed
+	uint16_t integration_value16 = 0x00ac;
+	uint16_t d_gain_value16 = 0x0298;
+	uint8_t a_gain_value = 0x30;
+	write_himax_exp_params(&camera, integration_value16, d_gain_value16, a_gain_value);
+}	
 /* --------------- END: SET HIMAX MANUAL EXPOSURE --------------- */
 
 
@@ -467,26 +470,31 @@ int start()
  
 	pi_gpio_pin_configure(&gpio_device, 2, PI_GPIO_OUTPUT); 
 
-	// ADD COMMENT HERE
-	outputs[0]=-127;
-	outputs[1]=13;
-#ifndef FROM_JTAG
-	int err = open_camera_himax(&camera);
-	if (err) {
-	  PRINTF("Failed to open camera\n");
-	  pmsis_exit(-2);
+	// setting up values for separation between image and detections 
+	for (int i=0;i<EXTRA_RECOGNITION;++i){
+		outputs[i]=-127;
 	}
-#endif
+	#ifndef FROM_JTAG
+		int err = open_camera_himax(&camera);
+		if (err) {
+		  PRINTF("Failed to open camera\n");
+		  pmsis_exit(-2);
+		}
+	#endif
 	// Manual Calibration
-	// manual_exposure_calibration();
+	//manual_exposure_calibration();
 	// // Get manually calibrated parameters
-	// get_himax_exp_params(&camera);
+	//get_himax_exp_params(&camera);
 	// write manually registers to set Exposure
-	// manual_exposure();
-
+	//manual_exposure();
+	pi_camera_control(&camera, PI_CAMERA_CMD_ON, 0);
+	manual_exposure();
 	struct pi_hyperram_conf hyper_conf;
+
 	pi_hyperram_conf_init(&hyper_conf);
+
 	pi_open_from_conf(&HyperRam, &hyper_conf);
+
 	if (pi_ram_open(&HyperRam))
 	{
 		PRINTF("Error ram open !\n");
@@ -504,19 +512,20 @@ int start()
 	struct pi_cluster_conf conf;
 	pi_cluster_conf_init(&conf);
 	pi_open_from_conf(&cluster_dev, (void *)&conf);
+
 	int error=pi_cluster_open(&cluster_dev);
 
 	if(error){ 
-	PRINTF("CLUSTER ERROR");
-	pmsis_exit(error);
+		PRINTF("CLUSTER ERROR \n");
+		pmsis_exit(error);
 	 }
 	  
-	int error_cnn=__PREFIX(CNN_Construct)();
+	int error_cnn=__PREFIX(CNN_Construct)(); //constructing the cnn
 	  
 	if (error_cnn)
 	{
-	printf("Graph constructor exited with an error \n %d",error_cnn);
-	pmsis_exit(-1);
+		printf("Graph constructor exited with an error \n %d",error_cnn);
+		pmsis_exit(-1);
 	}
 
 	init_wifi(); 
@@ -530,22 +539,21 @@ int start()
 	init_simple_streamer();
 	#ifdef VERBOSE
 		PRINTF("OPENED_STREAMER_TEXT\n");
-		printf("starting camera capture\n");
+		PRINTF("starting camera capture\n");
 	#endif
 	pi_task_push(pi_task_callback(&cam_task, camera_handler, NULL));
 	while(true){
-
-	pi_yield();
-
+		pi_yield();
 	}
-	__PREFIX(CNN_Destruct)();	
-	pmsis_exit(0);
+	__PREFIX(CNN_Destruct)();	//destroy cnn when task is over
+	pmsis_exit(0); //exit gracefully
 
 }
 int main(void)
 { 
-  //PRINTF("\n\n\t *** SSD DETECTOR ***\n\n");
-  
-  return pmsis_kickoff((void *) start);
+	#ifdef VERBOSE
+		PRINTF("\n\n\t *** SSD DETECTOR ***\n\n");
+	#endif
+	return pmsis_kickoff((void *) start);
 }
           

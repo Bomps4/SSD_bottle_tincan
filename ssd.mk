@@ -16,13 +16,14 @@ MEAS?=0
 QUANT_BITS=8
 #BUILD_DIR=BUILD
 MODEL_SQ8=1
-
+DEPTH?=1
 $(info Building $(TARGET_CHIP_FAMILY) mode with $(QUANT_BITS) bit quantization)
 
 NNTOOL_SCRIPT=nntool_scripts/nntool_script_ssdlite
-TRAINED_TFLITE_MODEL=tflite_model/$(MODEL_PREFIX_SSD).tflite
+TRAINED_TFLITE_MODEL=tflite_model/$(MODEL_PREFIX_SSD)_$(DEPTH).tflite
 MODEL_PREFIX=$(MODEL_PREFIX_SSD)
-MODEL_SUFFIX=_SSD
+
+MODEL_SUFFIX=$(DEPTH)_SSD
 IMAGE=$(CURDIR)/tflite_model/test_1_out.ppm
 MAIN=$(MODEL_PREFIX_SSD).c
 
@@ -51,7 +52,7 @@ else
 	endif
 	FREQ_FC?=250
 	MODEL_L1_MEMORY=$(shell expr 64000 \- $(TOTAL_STACK_SIZE))
-	MODEL_L2_MEMORY=250000
+	MODEL_L2_MEMORY=220000
 	MODEL_L3_MEMORY=8388608
 endif
 # hram - HyperBus RAM
@@ -63,11 +64,10 @@ MODEL_L3_CONST=hflash
 
 APP = tin_can_ssd
 APP_SRCS += $(MAIN) $(MODEL_COMMON_SRCS) $(CNN_LIB)
-
 APP_CFLAGS += -O3
 APP_CFLAGS += -I. -I$(MODEL_COMMON_INC) -I$(TILER_EMU_INC) -I$(TILER_INC) $(CNN_LIB_INCLUDE)
-APP_SRCS += BUILD_MODEL_SSD/SSD_tin_can_bottleKernels.c
-APP_CFLAGS += -IBUILD_MODEL_SSD
+APP_SRCS += $(BUILD_MODEL_SSD)/SSD_tin_can_bottleKernels.c
+APP_CFLAGS += -I$(BUILD_MODEL_SSD)
 
 ifeq ($(platform), gvsoc)
 	APP_CFLAGS += -DHAVE_LCD #-DPERF

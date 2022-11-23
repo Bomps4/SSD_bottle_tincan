@@ -20,26 +20,28 @@ SHOW_PERF?=1
 MEAS?=0
 QUANT_BITS=8
 MODEL_SQ8=1
+DEPTH?=1
+MODEL_SUFFIX=$(DEPTH)_SSD
+
 $(info Building $(TARGET_CHIP_FAMILY) mode with $(QUANT_BITS) bit quantization)
 
+BUILD_MODEL_SSD=$(MODEL_BUILD)
 IMAGE=$(CURDIR)/tflite_model/test_1_out.ppm
 MAIN?=$(MODEL_PREFIX_SSD).c
 
 include common/model_decl.mk
 
 APP = SSD_tin_can_bottle
-
 APP_SRCS += $(MAIN) $(MODEL_COMMON_SRCS) $(CNN_LIB)
-APP_SRCS += BUILD_MODEL_SSD/SSD_tin_can_bottleKernels.c  
+APP_SRCS += $(BUILD_MODEL_SSD)/SSD_tin_can_bottleKernels.c  
+
+
 
 APP_CFLAGS += -O3
-APP_CFLAGS += -I. -I$(MODEL_COMMON_INC) -I$(TILER_EMU_INC) -I$(TILER_INC) $(CNN_LIB_INCLUDE)
-APP_CFLAGS += -IBUILD_MODEL_SSD 
+APP_CFLAGS += -I./ -I$(MODEL_COMMON_INC) -I$(TILER_EMU_INC) -I$(TILER_INC) $(CNN_LIB_INCLUDE)
+APP_CFLAGS += -I$(BUILD_MODEL_SSD)
 APP_LDFLAGS += -lgaplib
 
-# extra lorenzo
-# APP_SRCS += src/himax_utils.c  
-# APP_CFLAGS += -Iinc 
 
 PMSIS_OS=pulpos
 
@@ -75,35 +77,50 @@ else #GAP8
 	ifeq '$(TARGET_CHIP)' 'GAP8_V3'
 	FREQ_CL?=175
 	else
-		FREQ_CL?=130
+		FREQ_CL?=160
 	endif
 	FREQ_FC?=250
 endif
 
 APP_CFLAGS += -DSTACK_SIZE=$(CLUSTER_STACK_SIZE) -DSLAVE_STACK_SIZE=$(CLUSTER_SLAVE_STACK_SIZE)
 
-APP_CFLAGS += -DAT_IMAGE=$(IMAGE) -DFREQ_CL=$(FREQ_CL) -DFREQ_FC=$(FREQ_FC)
+APP_CFLAGS += -DIMAGE_PATH=$(IMAGE) -DFREQ_CL=$(FREQ_CL) -DFREQ_FC=$(FREQ_FC)
 APP_CFLAGS += -DAT_INPUT_HEIGHT_SSD=$(AT_INPUT_HEIGHT_SSD) -DAT_INPUT_WIDTH_SSD=$(AT_INPUT_WIDTH_SSD) -DAT_INPUT_COLORS_SSD=$(AT_INPUT_COLORS_SSD)
 ifdef VERBOSE
 	APP_CFLAGS +=-DVERBOSE=0
+endif
+ifdef FROM_JTAG 
+	APP_CFLAGS +=-DFROM_JTAG=0
+endif
+ifdef PERFORMANCE
+	APP_CFLAGS +=-DPERFORMANCE=0
+endif
+ifdef MAP
+	APP_CFLAGS +=-DMAP=0
 endif
 #ifeq ($(PERF), 1)
 #	APP_CFLAGS += -DPERF
 #endif
 
-MODEL_TENSORS = BUILD_MODEL_SSD/SSD_tin_can_bottle_L3_Flash_Const.dat
+MODEL_TENSORS = $(BUILD_MODEL_SSD)/SSD_tin_can_bottle_L3_Flash_Const.dat
 READFS_FILES=$(abspath $(MODEL_TENSORS))
 PLPBRIDGE_FLAGS += -f
+MODEL_COMMON_SRCS += himax_utils.c
 
-BUILD_MODEL_SSD/ssdlite_ocrKernels.c:
+
+$(BUILD_MODEL_SSD)/ssdlite_ocrKernels.c:
+	echo $(CNN_LIB_INCLUDE)
+	echo $(MODEL_COMMON_SRCS)
+	echo $(CNN_LIB)
+	echo $(BUILD_MODEL_SSD)
 	make -f ssd.mk model CLUSTER_STACK_SIZE=$(CLUSTER_STACK_SIZE) CLUSTER_SLAVE_STACK_SIZE=$(CLUSTER_SLAVE_STACK_SIZE) 
 	
 
 # all depends on the models
-all:: BUILD_MODEL_SSD/ssdlite_ocrKernels.c 
+all:: $(BUILD_MODEL_SSD)/ssdlite_ocrKernels.c 
 
 clean::
-	rm -rf BUILD
+	rm -rf BUILD*
 
 clean_models:
 	rm -rf BUILD_MODEL*
