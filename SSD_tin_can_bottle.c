@@ -450,10 +450,10 @@ void manual_exposure_calibration(){
 }
 
 void manual_exposure(){
-	//IMAV PARAMETERS : curtains closed
-	uint16_t integration_value16 = 0x00ac;
-	uint16_t d_gain_value16 = 0x0298;
-	uint8_t a_gain_value = 0x30;
+	//CASY ROOM
+	uint16_t integration_value16 = 0x0154;
+	uint16_t d_gain_value16 = 0x0138;
+	uint8_t a_gain_value = 0x20;
 	write_himax_exp_params(&camera, integration_value16, d_gain_value16, a_gain_value);
 }	
 /* --------------- END: SET HIMAX MANUAL EXPOSURE --------------- */
