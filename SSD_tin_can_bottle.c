@@ -5,7 +5,7 @@
  * This software may be modified and distributed under the terms
  * of the BSD license.  See the LICENSE file for details.
  * 
-
+// LORENZO: aggiungi copyright unibo e tuo nome
 
   dump in nntool per inferenza senza passare da gvsoc. 
  */
