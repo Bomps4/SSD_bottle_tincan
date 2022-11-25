@@ -11,7 +11,7 @@
  */
 
 
-
+// LORENZO: TOGLI SPAZI
 
 #include "SSD_tin_can_bottle.h"
 #include "SSD_tin_can_bottleKernels.h"
@@ -79,7 +79,7 @@
 
 #define NUM_CALIBRATION_FRAMES 10
 #define LED_ON pi_gpio_pin_write(&gpio_device, 2, 1)
-
+// LORENZO: aggiusta spazi
 #define LED_OFF pi_gpio_pin_write(&gpio_device, 2, 0)
 
 AT_HYPERFLASH_FS_EXT_ADDR_TYPE __PREFIX(_L3_Flash) = 0;
@@ -169,7 +169,7 @@ static void init_streamer() {
 	if(streamer == NULL) pmsis_exit(-1);
 }
 
-#ifndef FROM_JTAG 
+#ifndef FROM_JTAG // LORENZO: ADD DESCRIPTION TO README
 	static int open_camera_himax(struct pi_device *device) {
 		int32_t errors = 0;
 		uint8_t set_value;
@@ -282,7 +282,7 @@ static void detection_handler(){
 		printf("image rotated\n");
 	#endif 
 	
-	 
+	 // LORENZO: spazi
 	  
 	//depending on the kind of quantization used the input may need to be rescaled to  be in the int8 format
 	//int8_t* Input_2 = converter_To_int8( Input_1 );
@@ -290,7 +290,7 @@ static void detection_handler(){
 	 
 	
 	pi_ram_write(&HyperRam, l3_buff , Input_1, (uint32_t)AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD);
-
+	// LORENZO: spazi
 	pi_ram_write(&HyperRam, l3_buff+AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD , Input_1, (uint32_t) AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD);
 
 	pi_ram_write(&HyperRam, l3_buff+2*AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD , Input_1, (uint32_t)AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD);
@@ -319,6 +319,7 @@ static void detection_handler(){
 	#endif
 	LED_OFF;
 	  
+	// LORENZO: spiega cosa fa
 	for(char i=0;i<NUMBER_OF_DETECTION;i+=1){
 		//converting output boxes to pixel values (heigh 240 pixels,width 320 pixels)
 		out_boxes[i*4] = (short int)(FIX2FP(((int)out_boxes[i*4])*SSD_tin_can_bottle_Output_1_OUT_QSCALE,SSD_tin_can_bottle_Output_1_OUT_QNORM)*AT_INPUT_HEIGHT_SSD);
@@ -336,11 +337,13 @@ static void detection_handler(){
 	#endif	
 
 	for (char i=0;i<NUMBER_OF_DETECTION*sizeof(short int)*4;++i){
-	outputs[i+EXTRA_RECOGNITION]=((signed char*)out_boxes)[i];
+		outputs[i+EXTRA_RECOGNITION]=((signed char*)out_boxes)[i];
 	}
 
-	for (char i=NUMBER_OF_DETECTION*sizeof(short int)*4;i<NUMBER_OF_DETECTION*(sizeof(short int)*4+1);++i)outputs[i+EXTRA_RECOGNITION]=out_scores[i-80];
-	for (char i=90;i<100;++i)outputs[i+EXTRA_RECOGNITION]=out_classes[i-90];
+	for (char i=NUMBER_OF_DETECTION*sizeof(short int)*4;i<NUMBER_OF_DETECTION*(sizeof(short int)*4+1);++i)
+		outputs[i+EXTRA_RECOGNITION]=out_scores[i-80];
+	for (char i=90;i<100;++i)
+		outputs[i+EXTRA_RECOGNITION]=out_classes[i-90];
 
 
 	// returning value to uint8 format for(int i=0; i<CAMERA_SIZE ; i++){Input_1[i] = Input_2[i]+128; }
@@ -363,6 +366,7 @@ static void camera_handler() {
 	#endif
 }
 
+// LORENZO: remove
 // /* --------------- HIMAX UTILS --------------- */
 
 // /**/
@@ -435,11 +439,7 @@ void manual_exposure_calibration(){
 	#endif
 	uint8_t i=0;
 	while(i<exposure_calibration_size){
-// 		// #ifdef VERBOSE
-// 		printf("%d\n",i);
-// 		// #endif
 		//Start camera acquisition
-		
 		pi_camera_control(&camera, PI_CAMERA_CMD_START, 0);
 		pi_camera_capture(&camera, Input_1, BUFF_SIZE); 		
 		pi_camera_control(&camera, PI_CAMERA_CMD_STOP, 0);
@@ -450,7 +450,7 @@ void manual_exposure_calibration(){
 }
 
 void manual_exposure(){
-	//CASY ROOM
+	//CASY ROOM parameters
 	uint16_t integration_value16 = 0x0154;
 	uint16_t d_gain_value16 = 0x0138;
 	uint8_t a_gain_value = 0x20;
