@@ -120,10 +120,12 @@ $(BUILD_MODEL_SSD)/ssdlite_ocrKernels.c:
 all:: $(BUILD_MODEL_SSD)/ssdlite_ocrKernels.c 
 
 clean::
-	rm -rf BUILD*
+	rm -rf BUILD
 
 clean_models:
 	rm -rf BUILD_MODEL*
+clean_all:
+	rm -rf BUILD*
 
 #$(info APP_SRCS... $(APP_SRCS))
 #$(info APP_CFLAGS... $(APP_CFLAGS))

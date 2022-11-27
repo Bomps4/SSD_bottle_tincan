@@ -1,24 +1,27 @@
-/*
- * Copyright (C) 2020 GreenWaves Technologies
- * All rights reserved.
- *
- * This software may be modified and distributed under the terms
- * of the BSD license.  See the LICENSE file for details.
- * 
-// LORENZO: aggiungi copyright unibo e tuo nome
-
-  dump in nntool per inferenza senza passare da gvsoc. 
- */
-
-
-// LORENZO: TOGLI SPAZI
-
+/*-----------------------------------------------------------------------------
+ Copyright (C) 2022-2023 University of Bologna, Italy.
+ All rights reserved.                                                           
+                                                                               
+ Licensed under the Apache License, Version 2.0 (the "License");               
+ you may not use this file except in compliance with the License.              
+ See LICENSE.apache.md in the top directory for details.                       
+ You may obtain a copy of the License at                                       
+                                                                               
+    http://www.apache.org/licenses/LICENSE-2.0                                   
+                                                                               
+ Unless required by applicable law or agreed to in writing, software           
+ distributed under the License is distributed on an "AS IS" BASIS,             
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.      
+ See the License for the specific language governing permissions and           
+ limitations under the License.                                                
+                                                                               
+ File:    SSD_tin_can_bottle.c                                                               
+ Author:  Luca Bompani      < luca.bompani5@unibo.it >                           
+ Date:    18.02.2021 
+*/
 #include "SSD_tin_can_bottle.h"
 #include "SSD_tin_can_bottleKernels.h"
 #include "SSD_tin_can_bottleInfo.h"
-
-
-
 //#include "/home/llamberti/work/gap_sdk/libs/frame_streamer/include/tools/frame_streamer.h"
 //#include "/home/llamberti/work/gap_sdk/libs/frame_streamer/frame_streamer/frame_streamer.c"
 #include "/home/bomps/Scrivania/gap_8/gap_sdk/frame_streamer/include/tools/frame_streamer.h"
@@ -51,8 +54,6 @@
 // exposure
 #define         HIMAX_AE_CTRL             0x2100
 
-
-
 #define __XSTR(__s) __STR(__s)
 #define __STR(__s) #__s
 
@@ -79,12 +80,9 @@
 
 #define NUM_CALIBRATION_FRAMES 10
 #define LED_ON pi_gpio_pin_write(&gpio_device, 2, 1)
-// LORENZO: aggiusta spazi
 #define LED_OFF pi_gpio_pin_write(&gpio_device, 2, 0)
 
 AT_HYPERFLASH_FS_EXT_ADDR_TYPE __PREFIX(_L3_Flash) = 0;
-
-
 L2_MEM static struct pi_device gpio_device;
 
 //streamers for passing text and images
@@ -117,6 +115,7 @@ L2_MEM short int out_boxes[NUMBER_OF_DETECTION*4]; //each bounding box is compos
 L2_MEM signed char out_scores[NUMBER_OF_DETECTION]; 
 L2_MEM signed char out_classes[NUMBER_OF_DETECTION];
 L2_MEM static int size;
+
 //callback function declarations
 static void detection_handler();
 static void camera_handler();
@@ -169,7 +168,7 @@ static void init_streamer() {
 	if(streamer == NULL) pmsis_exit(-1);
 }
 
-#ifndef FROM_JTAG // LORENZO: ADD DESCRIPTION TO README
+#ifndef FROM_JTAG
 	static int open_camera_himax(struct pi_device *device) {
 		int32_t errors = 0;
 		uint8_t set_value;
@@ -196,7 +195,7 @@ static void init_streamer() {
 		pi_time_wait_us(100000);
 
 		set_value = 3;
-		pi_camera_reg_set(device, IMG_ORIENTATION, &set_value); //IMG_ORIENTATION=0101
+		pi_camera_reg_set(device, IMG_ORIENTATION, &set_value); //IMG_ORIENTATION=0101 CURRENTLY NOT WORKING WwORKAROUND
 		set_value = 0x03;
 
 		set_value = 0x0;
@@ -232,7 +231,7 @@ void image_flipping(uint8_t* Input_1){
 	for(int i=AT_INPUT_WIDTH_SSD;i>0;--i){
 		for (int j=0;j<AT_INPUT_HEIGHT_SSD/2;++j){
 			unsigned char pixel=Input_1[i+j*AT_INPUT_WIDTH_SSD];
-			Input_1[i+j*AT_INPUT_WIDTH_SSD]=Input_1[-i+(AT_INPUT_HEIGHT_SSD-j)*AT_INPUT_WIDTH_SSD]; //exchanging elements on 
+			Input_1[i+j*AT_INPUT_WIDTH_SSD]=Input_1[-i+(AT_INPUT_HEIGHT_SSD-j)*AT_INPUT_WIDTH_SSD]; //exchanging elements on diagonall
 			Input_1[-i+(AT_INPUT_HEIGHT_SSD-j)*AT_INPUT_WIDTH_SSD]=pixel;
 		}
 	}
@@ -244,7 +243,7 @@ static void RunNetwork()
 	gap_cl_starttimer();
 	gap_cl_resethwtimer();
 	#endif
-	__PREFIX(CNN)(l3_buff,out_boxes,out_classes, out_scores); //(signed short*)(outputs+2),outputs+82,outputs+92);
+	__PREFIX(CNN)(l3_buff,out_boxes,out_classes, out_scores); //(signed short*)(outputs+EXTRA_RECOGNITION),outputs+80+EXTRA_RECOGNITION,outputs+90+EXTRA_RECOGNITION); CONVERTION FOR OUTPUTS
 }
 
 static void send_text(){
@@ -254,14 +253,13 @@ static void send_text(){
 }
 
 static void init_simple_streamer(){
-	//simple initialization of simple streamer class
+	//initialization of simple streamer struct
 	text_streamer.channel=pi_transport_connect(&wifi, NULL, NULL);
 	text_streamer.size=TEXT_SIZE;
 }
 
 static void detection_handler(){
 	pi_camera_control(&camera, PI_CAMERA_CMD_STOP, 0);//stopping the camera
-
 	memset(task, 0, sizeof(struct pi_cluster_task));//de initializing pi_cluster_task
 	task->entry = &RunNetwork;//object detector function reference
 	task->stack_size = STACK_SIZE;//master stack size in cluster
@@ -281,24 +279,18 @@ static void detection_handler(){
 	#ifdef VERBOSE	
 		printf("image rotated\n");
 	#endif 
-	
-	 // LORENZO: spazi
-	  
+
 	//depending on the kind of quantization used the input may need to be rescaled to  be in the int8 format
 	//int8_t* Input_2 = converter_To_int8( Input_1 );
-	  
-	 
-	
-	pi_ram_write(&HyperRam, l3_buff , Input_1, (uint32_t)AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD);
-	// LORENZO: spazi
-	pi_ram_write(&HyperRam, l3_buff+AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD , Input_1, (uint32_t) AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD);
 
+	pi_ram_write(&HyperRam, l3_buff , Input_1, (uint32_t)AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD);
+	pi_ram_write(&HyperRam, l3_buff+AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD , Input_1, (uint32_t) AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD);
 	pi_ram_write(&HyperRam, l3_buff+2*AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD , Input_1, (uint32_t)AT_INPUT_WIDTH_SSD*AT_INPUT_HEIGHT_SSD);
+
 	#ifdef VERBOSE
 		printf("ram written \n");
 	#endif
 
-	
 	uint32_t time_begin=rt_time_get_us(); 
 	LED_ON;
 	uint32_t error_cluster = pi_cluster_send_task_to_cl(&cluster_dev, task);
@@ -319,9 +311,8 @@ static void detection_handler(){
 	#endif
 	LED_OFF;
 	  
-	// LORENZO: spiega cosa fa
+	//converting output boxes valures in the 0-1 range to picture pixel values (heigh 240 pixels,width 320 pixels)
 	for(char i=0;i<NUMBER_OF_DETECTION;i+=1){
-		//converting output boxes to pixel values (heigh 240 pixels,width 320 pixels)
 		out_boxes[i*4] = (short int)(FIX2FP(((int)out_boxes[i*4])*SSD_tin_can_bottle_Output_1_OUT_QSCALE,SSD_tin_can_bottle_Output_1_OUT_QNORM)*AT_INPUT_HEIGHT_SSD);
 		out_boxes[i*4+1 ] = (short int)(FIX2FP(((int)out_boxes[1+i*4])*SSD_tin_can_bottle_Output_1_OUT_QSCALE,SSD_tin_can_bottle_Output_1_OUT_QNORM)*AT_INPUT_WIDTH_SSD);
 		out_boxes[i*4 +2] = (short int)(FIX2FP(((int)out_boxes[2+i*4])*SSD_tin_can_bottle_Output_1_OUT_QSCALE,SSD_tin_can_bottle_Output_1_OUT_QNORM)*AT_INPUT_HEIGHT_SSD);
@@ -336,24 +327,19 @@ static void detection_handler(){
 		pmsis_exit(0);
 	#endif	
 
-	for (char i=0;i<NUMBER_OF_DETECTION*sizeof(short int)*4;++i){
+	for (char i=0;i<NUMBER_OF_DETECTION*sizeof(short int)*4;++i)
 		outputs[i+EXTRA_RECOGNITION]=((signed char*)out_boxes)[i];
-	}
-
 	for (char i=NUMBER_OF_DETECTION*sizeof(short int)*4;i<NUMBER_OF_DETECTION*(sizeof(short int)*4+1);++i)
 		outputs[i+EXTRA_RECOGNITION]=out_scores[i-80];
 	for (char i=90;i<100;++i)
 		outputs[i+EXTRA_RECOGNITION]=out_classes[i-90];
 
-
 	// returning value to uint8 format for(int i=0; i<CAMERA_SIZE ; i++){Input_1[i] = Input_2[i]+128; }
 	frame_streamer_send_async(streamer, &buffer,pi_task_callback(&streamer_task, send_text, NULL));
-
 }
 
 static void camera_handler() {
 	#ifndef FROM_JTAG 
-		
 		pi_camera_capture_async(&camera,  Input_1, CAMERA_WIDTH*CAMERA_HEIGHT,pi_task_callback(&detection_task, detection_handler, NULL) );
 	#ifdef VERBOSE
 		printf("camera finished\n");
@@ -366,72 +352,8 @@ static void camera_handler() {
 	#endif
 }
 
-// LORENZO: remove
-// /* --------------- HIMAX UTILS --------------- */
-
-// /**/
-// static int32_t pi_camera_reg_get16(struct pi_device *camera, uint32_t reg_addr_l, uint32_t reg_addr_h, uint16_t *value)
-// {
-//   uint8_t *v = (uint8_t *) value;
-//   pi_camera_reg_get(camera, reg_addr_l, v);
-//   return pi_camera_reg_get(camera, reg_addr_h, v+1);
-// }
-
-// static int32_t pi_camera_reg_set16(struct pi_device *camera, uint32_t reg_addr_l, uint32_t reg_addr_h, uint16_t *value)
-// {
-//   uint8_t *v = (uint8_t *) value;
-//   pi_camera_reg_set(camera, reg_addr_l, v);
-//   return pi_camera_reg_set(camera, reg_addr_h, v+1);
-// }
-
-// static void _himax_enable_ae(struct pi_device *camera, uint8_t value)
-// {
-//   if(value) value=1;
-//   pi_camera_reg_set(camera, HIMAX_AE_CTRL, &value);
-// }
-
-// void write_himax_exp_params(struct pi_device *camera, uint16_t integration_value16, uint16_t d_gain_value16, uint8_t a_gain_value){
-//     /**
-//      * digital gain 
-//      *    1x -> DIGITAL_GAIN_H    0x01  
-//      *          DIGITAL_GAIN__L   0x00
-//      * analog gain
-//      *    1x -> 0x00
-//      *    2x -> 0x10
-//      *    4x -> 0x20
-//      *    8x -> 0x30    
-//     */
-
-// #ifdef VERBOSE
-//     printf("Setting:\n");
-//     printf("\tintegration time: 0x%04x\n", integration_value16);
-//     printf("\tdigital gain:     0x%04x\n", d_gain_value16);
-//     printf("\tanalog gain:   0x%02x\n", a_gain_value);
-// #endif
-//     // start commit 
-//     pi_camera_reg_set(camera, HIMAX_GRP_PARAM_HOLD, 0x1);
-//     // pi_time_wait_us(100000);
-
-//     // disable Auto-Exposure
-//     _himax_enable_ae(camera, 0);
-//     // set registers
-//     pi_camera_reg_set16(camera, HIMAX_INTEGRATION_L, HIMAX_INTEGRATION_H, &integration_value16);
-//     pi_camera_reg_set16(camera, HIMAX_DIGITAL_GAIN_L, HIMAX_DIGITAL_GAIN_H, &d_gain_value16);
-//     pi_camera_reg_set(camera,   HIMAX_ANAprintf_GAIN, &a_gain_value);
-//     // end commit
-//     pi_camera_reg_set(camera, HIMAX_GRP_PARAM_HOLD, 0x0);
-//     // pi_time_wait_us(100000);
-// }
-
-// /* --------------- END: HIMAX UTILS --------------- */
-
-
-/* --------------- SET HIMAX MANUAL EXPOSURE --------------- */
-
-
 unsigned int exposure_calibration_size = NUM_CALIBRATION_FRAMES;
 void manual_exposure_calibration(){
-
 	size = CAMERA_SIZE;
 	init_exposure_calibration(exposure_calibration_size);
 	#ifdef VERBOSE
@@ -458,7 +380,6 @@ void manual_exposure(){
 }	
 /* --------------- END: SET HIMAX MANUAL EXPOSURE --------------- */
 
-
 int start()
 {	
 
@@ -474,6 +395,7 @@ int start()
 	for (int i=0;i<EXTRA_RECOGNITION;++i){
 		outputs[i]=-127;
 	}
+
 	#ifndef FROM_JTAG
 		int err = open_camera_himax(&camera);
 		if (err) {
@@ -481,12 +403,7 @@ int start()
 		  pmsis_exit(-2);
 		}
 	#endif
-	// Manual Calibration
-	//manual_exposure_calibration();
-	// // Get manually calibrated parameters
-	//get_himax_exp_params(&camera);
-	// write manually registers to set Exposure
-	//manual_exposure();
+
 	pi_camera_control(&camera, PI_CAMERA_CMD_ON, 0);
 	manual_exposure();
 	struct pi_hyperram_conf hyper_conf;
