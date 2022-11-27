@@ -17,7 +17,7 @@
                                                                                
  File:    SSD_tin_can_bottle.c                                                               
  Author:  Luca Bompani      < luca.bompani5@unibo.it >                           
- Date:    18.02.2021 
+ Date:    26.11.2022 
 */
 #include "SSD_tin_can_bottle.h"
 #include "SSD_tin_can_bottleKernels.h"
