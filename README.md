@@ -4,12 +4,25 @@ The project implements an image-based Deep Learning model to detect and classify
 The algorithm is based on Mobilenet SSD-Lite with post training quantization. 
 
 ## Getting Started
-
 the whole model can be run with the command:
 
-	make clean all run pltform=gvsoc
+	make clean all run 
 
-by default it will take the image test_1_output located in the tflite_model folder 
+by default it will run using the input coming from the camera. It is possible to give some flags to the make file in order to change the this behaviour in particular:
+	
+	make clean all run FROM_JTAG=0 IMAGE=path/to/image.ppm
+
+will read from the jtag an image (indicated in the IMAGE Variable) and use it as input for the network.
+	
+	make clean all run PERFORMANCE=0
+will print on standard output the number of cicles and operations of each  layer in the network,
+	 make clean all run MAP=0
+will print on standard output the outputs of the network and then terminate the exeution.
+
+There are three different quantized models that can be used in the tflite directory. Each one can be used by varing the DEPTH variable which can assume values {1(default),075,05}.
+	
+lastly
+		
 
 ## AT Optimization
 
